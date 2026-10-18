@@ -7,7 +7,7 @@ test -n "$srcdir" || srcdir=.
   autoreconf --force -v --install
 ) || exit
 
-CFLAGS="$CFLAGS -std=c99 -fno-builtin -DHAVE_SGX=1 -fPIC -DUNW_LOCAL_ONLY -fdebug-prefix-map=$(pwd)=/libunwind"
+CFLAGS="$CFLAGS -U_FORTIFY_SOURCE -std=c99 -fno-builtin -DHAVE_SGX=1 -fPIC -DUNW_LOCAL_ONLY -fdebug-prefix-map=$(pwd)=/libunwind"
 # Remove duplicated compiler options and filter out `-nostdinc'
 CFLAGS=`echo $CFLAGS | tr ' ' '\n' | grep -v nostdinc | tr '\n' ' '`
 export CFLAGS

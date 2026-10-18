@@ -775,7 +775,7 @@ static inline uint32_t cselect(uint64_t pred, uint32_t old_val, uint32_t new_val
     __asm__("cmp %1, 0\n\t"
             "cmovne %0, %2"
             : "+r"(new_val)
-            : "rm"(pred), "rm"(old_val));
+            : "r"(pred), "r"(old_val));
     return new_val;
 }
 
@@ -784,7 +784,7 @@ static inline int32_t cselect32(uint64_t pred, int32_t old_val, int32_t new_val)
     __asm__("cmp %1, 0\n\t"
             "cmovne %0, %2"
             : "+r"(new_val)
-            : "rm"(pred), "rm"(old_val));
+            : "r"(pred), "r"(old_val));
     return new_val;
 }
 static inline uint64_t cselect64(uint64_t pred, const uint64_t expected, uint64_t old_val, uint64_t new_val) __attribute__((always_inline));
@@ -802,7 +802,7 @@ static inline uint64_t cselect64(uint64_t pred, const uint64_t expected, uint64_
     __asm__("cmp %1, %3\n\t"
             "cmove %0, %2"
             : "+r"(new_val)
-            : "rm"(pred), "rm"(old_val), "irm"(expected));
+            : "r"(pred), "r"(old_val), "irm"(expected));
     return new_val;
 }
 
@@ -811,7 +811,7 @@ static inline int64_t cselect64s(uint64_t pred, int64_t old_val, int64_t new_val
     __asm__("cmp %1, 0\n\t"
             "cmovne %0, %2"
             : "+r"(new_val)
-            : "rm"(pred), "rm"(old_val));
+            : "r"(pred), "r"(old_val));
     return new_val;
 }
 
@@ -923,12 +923,12 @@ static inline uint64_t prefix_op1_lookup(uint64_t prs)
     uint64_t ans = 0;
     __m128i mask = _mm_set1_epi8((char)0xf0);
     __m128i op1_h4b = _mm_and_si128(mask, query);
-    __m128i op1_l4b = (__m128i)__builtin_ia32_pandn128((__v2di)mask, (__v2di)query);
+    __m128i op1_l4b = ((~mask) & query);
     for (char i = 0; i < 16; i++)
     {
         __m128i rmask = _mm_cmpeq_epi8(op1_h4b, _mm_set1_epi8((char)(i << 4)));
         // here another way is to use _mm_andnot_si128, I tried on test server, doesn't have much differences
-        rmask = (__m128i)__builtin_ia32_pandn128((__v2di)rmask, (__v2di)_mm_set1_epi8((char)0x80));
+        rmask = ((~rmask) & _mm_set1_epi8((char)0x80));
         rmask = _mm_or_si128(rmask, op1_l4b);
         __m128i tb = _mm_loadu_si128(table + i);
         __m128i res = (__m128i)__builtin_ia32_pshufb128((__v16qi)tb, (__v16qi)rmask);
@@ -968,18 +968,18 @@ static inline __m128i prefix_op1_op2_lookup(uint64_t op1)
     __m128i *table2 = (__m128i *)extended;
     __m256i mask = _mm256_set1_epi8((char)0xf0);
     __m256i op1_h4b = _mm256_and_si256(mask, query);
-    __m256i op1_l4b = (__m256i)__builtin_ia32_andnotsi256((__v4di)mask, (__v4di)query);
+    __m256i op1_l4b = ((~mask) & query);
     uint64_t ans1 = 0;
     uint64_t ans2 = 0;
     for (uint64_t i = 0; i < 16; i++)
     {
         __m256i rmask = _mm256_cmpeq_epi8(op1_h4b, _mm256_set1_epi8((char)(i << 4)));
         // here another way is to use _mm_andnot_si128, I tried on test server, doesn't have much differences
-        rmask = (__m256i)__builtin_ia32_andnotsi256(rmask, _mm256_set1_epi8((char)0x80));
+        rmask = ((~rmask) & _mm256_set1_epi8((char)0x80));
         rmask = _mm256_or_si256(rmask, op1_l4b);
         __m128i tb1 = _mm_loadu_si128(table1 + i);
         __m128i tb2 = _mm_loadu_si128(table2 + i);
-        __m256i tb12 = (__m256i)__builtin_ia32_vinsertf128_si256((__v8si)__builtin_ia32_si256_si((__v4si)tb1), (__v4si)tb2, 1);
+        __m256i tb12 = (__m256i)(__v4di){ ((__v2di)tb1)[0], ((__v2di)tb1)[1], ((__v2di)tb2)[0], ((__v2di)tb2)[1] };
         __m256i res = (__m256i)__builtin_ia32_pshufb256((__v32qi)tb12, (__v32qi)rmask);
         ans1 |= (uint64_t)res[0];
         ans2 |= (uint64_t)res[2];

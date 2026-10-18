@@ -213,7 +213,7 @@ static inline uint64_t cselect64(uint64_t pred, const uint64_t expected, uint64_
     __asm__("cmp %3, %1\n\t"
             "cmove %2, %0"
             : "+r"(new_val)
-            : "rm"(pred), "rm"(old_val), "ri"(expected));
+            : "r"(pred), "r"(old_val), "ri"(expected));
     return new_val;
 }
 

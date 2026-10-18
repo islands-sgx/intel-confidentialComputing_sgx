@@ -413,6 +413,6 @@ END_FUNC
 
 .ct_aexnotify_end:
 
-.sect   _to_be_discarded, "e", @nobits
+.section _to_be_discarded,"e",@nobits
 .space MITIGATION_CODE_ALIGNMENT - (.ct_aexnotify_end - .ct_enable_aexnotify)
 .previous

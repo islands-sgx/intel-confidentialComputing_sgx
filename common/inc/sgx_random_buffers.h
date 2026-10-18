@@ -281,7 +281,7 @@ private:
         }
     };
 
-    char __bigger_[size()];
+    char __bigger_[size(1)];
 };
 
 template <class T, unsigned M = 0x1000>
