@@ -52,7 +52,12 @@ $(OBJS3): %.o: %.c
 	$(CC) -c $(TCFLAGS) $(CFLAGS) -fPIC $< -o $@
 
 $(OBJS4): %.o: %.c
-	$(CC) -mavx2 -O3 -masm=intel $(filter-out -O2,$(CFLAGS)) $(TCFLAGS) \
+	# -mno-vzeroupper: ct_decode restores the interrupted app's zmm0-15
+	# via inline asm before returning, but a compiler-inserted vzeroupper
+	# in the epilogue would zero bits [511:128] of all vector regs AFTER
+	# that restore (and after restore_xregs), silently corrupting
+	# vector-heavy code (e.g. IFMA) resumed via the AEX-Notify mitigation.
+	$(CC) -mavx2 -mno-vzeroupper -O3 -masm=intel $(filter-out -O2,$(CFLAGS)) $(TCFLAGS) \
 		-fPIC $(CPPFLAGS) -c $< -o $@
 
 .PHONY: elf_parser
