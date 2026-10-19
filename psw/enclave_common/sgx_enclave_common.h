@@ -237,6 +237,13 @@ bool COMM_API enclave_initialize(
     COMM_IN size_t info_size,
     COMM_OUT_OPT uint32_t* enclave_error);
 
+int COMM_API enclave_pages_acquire(
+    COMM_IN void* base_address,
+    COMM_IN uint64_t selector,
+    COMM_IN uint64_t table_ptr,
+    COMM_IN uint64_t table_bytes);
+int COMM_API enclave_pages_release(COMM_IN void* base_address);
+
 /* enclave_delete()
  * Parameters:
  *      base_address [in] - The enclave base address as returned from the enclave_create API.

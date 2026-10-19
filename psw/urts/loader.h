@@ -66,10 +66,13 @@ public:
     uint64_t get_elrange_size() const;
     const secs_t& get_secs() const;
     const std::vector<std::pair<tcs_t *, bool>>& get_tcs_list() const;
+    const std::vector<uint64_t>& get_readable_reg_pages() const;
+    const std::vector<uint64_t>& get_business_reg_pages() const;
     void* get_symbol_address(const char* const sym);
     int set_memory_protection();
 
 private:
+    int record_reg_pages(uint64_t start_rva, uint64_t size, bool readable);
     int build_mem_region(const section_info_t &sec_info);
     int build_image(Reserved_FormerlyLaunchToken * const reserved, sgx_attributes_t * const secs_attr, sgx_config_id_t *config_id, sgx_config_svn_t config_svn, le_prd_css_file_t *prd_css_file, sgx_misc_attribute_t * const misc_attr);
     int build_secs(sgx_attributes_t * const secs_attr, sgx_config_id_t *config_id, sgx_config_svn_t config_svn, sgx_misc_attribute_t * const misc_attr);
@@ -98,6 +101,9 @@ private:
 
     // the TCS list
     std::vector<std::pair<tcs_t *, bool>> m_tcs_list;
+    // Readable REG pages derived from the signed ELF and enclave layout.
+    std::vector<uint64_t> m_readable_reg_pages;
+    std::vector<uint64_t> m_business_reg_pages;
     // the enclave creation parameters
     const metadata_t    *m_metadata;
     secs_t              m_secs;

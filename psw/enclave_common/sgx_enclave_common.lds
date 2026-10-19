@@ -13,6 +13,8 @@ global:
     sgx_trace_logger_callback;
     sgx_trace_loglevel;
     enclave_get_file_handle;
+    enclave_pages_acquire;
+    enclave_pages_release;
 local:
     *;
 };

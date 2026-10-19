@@ -75,6 +75,37 @@ sgx_status_t sgx_ecall_switchless(const sgx_enclave_id_t enclave_id, const int p
 }
 
 extern "C"
+sgx_status_t SGXAPI sgx_set_ecall_page_readiness_table(
+    const sgx_enclave_id_t enclave_id,
+    const sgx_page_readiness_table_t *table)
+{
+    if (table == NULL || table->data == NULL)
+        return SGX_ERROR_INVALID_PARAMETER;
+
+    CEnclave *enclave = CEnclavePool::instance()->ref_enclave(enclave_id);
+    if (enclave == NULL)
+        return SGX_ERROR_INVALID_ENCLAVE_ID;
+
+    sgx_status_t result = enclave->set_ecall_page_readiness_table(table);
+    CEnclavePool::instance()->unref_enclave(enclave);
+    return result;
+}
+
+extern "C"
+sgx_status_t SGXAPI atfield_sgx_set_ecall_page_readiness_backend(
+    const sgx_enclave_id_t enclave_id,
+    const uint32_t backend)
+{
+    CEnclave *enclave = CEnclavePool::instance()->ref_enclave(enclave_id);
+    if (enclave == NULL)
+        return SGX_ERROR_INVALID_ENCLAVE_ID;
+
+    sgx_status_t result = enclave->set_ecall_page_readiness_backend(backend);
+    CEnclavePool::instance()->unref_enclave(enclave);
+    return result;
+}
+
+extern "C"
 int sgx_ocall(const unsigned int proc, const sgx_ocall_table_t *ocall_table, void *ms, CTrustThread *trust_thread)
 {
     assert(trust_thread != NULL);

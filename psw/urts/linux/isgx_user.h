@@ -118,6 +118,16 @@ enum sgx_page_flags {
 #define SGX_IOC_ENCLAVE_REMOVE_PAGES \
     _IOWR(SGX_MAGIC, 0x07, struct sgx_enclave_remove_pages)
 
+struct sgx_enclave_pages_acquire {
+    __u64 selector;
+    __u64 table_ptr;
+    __u64 table_bytes;
+};
+
+#define SGX_IOC_ENCLAVE_PAGES_ACQUIRE \
+    _IOW(SGX_MAGIC, 0x0A, struct sgx_enclave_pages_acquire)
+#define SGX_IOC_ENCLAVE_PAGES_RELEASE \
+    _IO(SGX_MAGIC, 0x0B)
 
 /* Legacy OOT driver support for EDMM */
 #define SGX_IOC_ENCLAVE_EMODPR \

@@ -1696,3 +1696,37 @@ extern "C" uint32_t COMM_API enclave_get_file_handle(void* virt_addr, int* encla
 }
 #endif
 
+
+
+extern "C" int COMM_API enclave_pages_acquire(void* base_address, uint64_t selector, uint64_t table_ptr, uint64_t table_bytes)
+{
+    if (base_address == NULL || ((table_ptr == 0) != (table_bytes == 0)))
+        return EINVAL;
+    if (s_driver_type != SGX_DRIVER_IN_KERNEL)
+        return ENOTTY;
+
+    int hfile = get_file_handle_from_base_address(base_address);
+    if (hfile == -1)
+        return ENOENT;
+
+    struct sgx_enclave_pages_acquire request = { selector, table_ptr, table_bytes };
+    if (ioctl(hfile, SGX_IOC_ENCLAVE_PAGES_ACQUIRE, &request) == -1)
+        return errno;
+    return 0;
+}
+
+extern "C" int COMM_API enclave_pages_release(void* base_address)
+{
+    if (base_address == NULL)
+        return EINVAL;
+    if (s_driver_type != SGX_DRIVER_IN_KERNEL)
+        return ENOTTY;
+
+    int hfile = get_file_handle_from_base_address(base_address);
+    if (hfile == -1)
+        return ENOENT;
+
+    if (ioctl(hfile, SGX_IOC_ENCLAVE_PAGES_RELEASE, 0) == -1)
+        return errno;
+    return 0;
+}

@@ -132,6 +132,46 @@ const std::vector<std::pair<tcs_t *, bool>>& CLoader::get_tcs_list() const
     return m_tcs_list;
 }
 
+const std::vector<uint64_t>& CLoader::get_readable_reg_pages() const
+{
+    return m_readable_reg_pages;
+}
+
+const std::vector<uint64_t>& CLoader::get_business_reg_pages() const
+{
+    return m_business_reg_pages;
+}
+
+int CLoader::record_reg_pages(uint64_t start_rva, uint64_t size, bool readable)
+{
+    if (size == 0)
+        return SGX_SUCCESS;
+    if (size > UINT64_MAX - start_rva)
+        return SGX_ERROR_INVALID_PARAMETER;
+
+    const uint64_t end = start_rva + size;
+    if (end > UINT64_MAX - (SE_PAGE_SIZE - 1))
+        return SGX_ERROR_INVALID_PARAMETER;
+
+    const uint64_t page_end = (end + SE_PAGE_SIZE - 1) & ~((uint64_t)SE_PAGE_SIZE - 1);
+    for (uint64_t page_rva = start_rva & ~((uint64_t)SE_PAGE_SIZE - 1);
+         page_rva < page_end;
+         page_rva += SE_PAGE_SIZE)
+    {
+        try
+        {
+            m_business_reg_pages.push_back(page_rva);
+            if (readable)
+                m_readable_reg_pages.push_back(page_rva);
+        }
+        catch (...)
+        {
+            return SGX_ERROR_OUT_OF_MEMORY;
+        }
+    }
+    return SGX_SUCCESS;
+}
+
 const secs_t& CLoader::get_secs() const
 {
     return m_secs;
@@ -305,6 +345,16 @@ int CLoader::build_sections(std::vector<uint8_t> *bitmap)
         }
 
         section_info_t sec_info = { sections[i]->raw_data(), sections[i]->raw_data_size(), sections[i]->get_rva(), sections[i]->virtual_size(), sections[i]->get_si_flags(), bitmap };
+        const si_flags_t section_flags = sections[i]->get_si_flags();
+        if (section_flags & SI_FLAG_REG)
+        {
+            ret = record_reg_pages(
+                sections[i]->get_rva(),
+                sections[i]->virtual_size(),
+                (section_flags & SI_FLAG_R) != 0);
+            if (ret != SGX_SUCCESS)
+                return ret;
+        }
 
         if(SGX_SUCCESS != (ret = build_mem_region(sec_info)))
             return ret;
@@ -378,6 +428,20 @@ int CLoader::build_context(const uint64_t start_rva, layout_entry_t *layout)
     memset(added_page, 0, SE_PAGE_SIZE);
     memset(&sinfo, 0, sizeof(sinfo));
     uint64_t rva = start_rva + layout->rva;
+
+    if ((layout->attributes & PAGE_ATTR_EADD) &&
+        (layout->si_flags & SI_FLAG_REG) &&
+        layout->id != LAYOUT_ID_TCS &&
+        layout->id != LAYOUT_ID_SSA &&
+        layout->id != LAYOUT_ID_GUARD &&
+        layout->id != LAYOUT_ID_TCS_DYN &&
+        layout->id != LAYOUT_ID_SSA_DYN)
+    {
+        const uint64_t size = ((uint64_t)layout->page_count) << SE_PAGE_SHIFT;
+        ret = record_reg_pages(rva, size, (layout->si_flags & SI_FLAG_R) != 0);
+        if (ret != SGX_SUCCESS)
+            return ret;
+    }
 
     assert(IS_PAGE_ALIGNED(rva));
     se_trace(SE_TRACE_DEBUG, "\t%s\n", __FUNCTION__);
@@ -863,6 +927,8 @@ bool CLoader::is_ae(const enclave_css_t *enclave_css)
 
 int CLoader::load_enclave(Reserved_FormerlyLaunchToken *reserved, int debug, const metadata_t *metadata, sgx_config_id_t *config_id, sgx_config_svn_t config_svn, le_prd_css_file_t *prd_css_file, sgx_misc_attribute_t *misc_attr)
 {
+    m_readable_reg_pages.clear();
+    m_business_reg_pages.clear();
     int ret = SGX_SUCCESS;
     sgx_misc_attribute_t sgx_misc_attr;
     memset(&sgx_misc_attr, 0, sizeof(sgx_misc_attribute_t));

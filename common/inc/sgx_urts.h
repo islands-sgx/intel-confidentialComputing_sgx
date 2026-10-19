@@ -42,6 +42,7 @@
 #include "sgx_report.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 
 #define MAX_EX_FEATURES_COUNT 32
@@ -78,6 +79,12 @@ extern "C" {
 
 
 typedef uint8_t sgx_reserved_field_1024t[1024];
+
+typedef struct _sgx_page_readiness_table_t
+{
+    const uint8_t *data;
+    size_t size;
+} sgx_page_readiness_table_t;
 
 /**
  * @deprecated Support for launch tokens was removed in v2.28 (in favor of Flexible Launch Control). 
@@ -134,6 +141,10 @@ sgx_status_t SGXAPI sgx_create_encrypted_enclave(
                         uint8_t* sealed_key);
 
 sgx_status_t SGXAPI sgx_destroy_enclave(const sgx_enclave_id_t enclave_id);
+
+sgx_status_t SGXAPI sgx_set_ecall_page_readiness_table(
+    sgx_enclave_id_t enclave_id,
+    const sgx_page_readiness_table_t *table);
 
 sgx_status_t SGXAPI sgx_get_target_info(
 	const sgx_enclave_id_t enclave_id,
