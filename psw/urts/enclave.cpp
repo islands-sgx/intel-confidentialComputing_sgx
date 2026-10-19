@@ -81,6 +81,7 @@ CEnclave::CEnclave()
     , m_page_readiness_table_installed(false)
     , m_page_readiness_broken(false)
     , m_page_readiness_txn_active(false)
+    , m_page_readiness_txn_owner(0)
 {
     memset(&m_enclave_info, 0, sizeof(debug_enclave_info_t));
     memset(&m_target_info, 0, sizeof(sgx_target_info_t));
@@ -282,10 +283,19 @@ static sgx_status_t readiness_errno_to_status(int error)
     }
 }
 
+bool CEnclave::is_readiness_txn_on_current_thread() const
+{
+    return m_page_readiness_txn_active.load(std::memory_order_acquire) &&
+           pthread_equal(m_page_readiness_txn_owner, pthread_self()) != 0;
+}
+
 sgx_status_t CEnclave::set_ecall_page_readiness_table(const sgx_page_readiness_table_t *table)
 {
     if (table == NULL || table->data == NULL || table->size < 32)
         return SGX_ERROR_INVALID_PARAMETER;
+    if (m_page_readiness_started.load(std::memory_order_acquire) ||
+        is_readiness_txn_on_current_thread())
+        return SGX_ERROR_INVALID_STATE;
 
     se_wtlock(&m_rwlock);
     if (m_destroyed || m_page_readiness_table_set ||
@@ -416,6 +426,9 @@ sgx_status_t CEnclave::set_ecall_page_readiness_backend(uint32_t backend)
     if (backend != PAGE_READINESS_BACKEND_KERNEL &&
         backend != PAGE_READINESS_BACKEND_USERSPACE)
         return SGX_ERROR_INVALID_PARAMETER;
+    if (m_page_readiness_started.load(std::memory_order_acquire) ||
+        is_readiness_txn_on_current_thread())
+        return SGX_ERROR_INVALID_STATE;
 
     se_wtlock(&m_rwlock);
     if (m_destroyed || !m_page_readiness_table_set ||
@@ -745,7 +758,8 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
 
         if (readiness_call)
         {
-            m_page_readiness_txn_active = true;
+            m_page_readiness_txn_owner = pthread_self();
+            m_page_readiness_txn_active.store(true, std::memory_order_release);
             if (readiness_nonempty &&
                 m_page_readiness_backend == PAGE_READINESS_BACKEND_KERNEL)
             {
@@ -760,7 +774,7 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
                     SE_TRACE(SE_TRACE_WARNING,
                              "ATField kernel ACQUIRE failed selector=%d errno=%d\n",
                              proc, acquire_error);
-                    m_page_readiness_txn_active = false;
+                    m_page_readiness_txn_active.store(false, std::memory_order_release);
                     trust_thread->decrease_ref();
                     se_rdunlock(&m_rwlock);
                     return readiness_errno_to_status(acquire_error);
@@ -769,7 +783,7 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
             }
 
             ret = do_ecall(proc, m_ocall_table, ms, trust_thread);
-            m_page_readiness_txn_active = false;
+            m_page_readiness_txn_active.store(false, std::memory_order_release);
 
             int release_error = 0;
             if (readiness_nonempty &&
@@ -817,7 +831,7 @@ int CEnclave::ocall(const unsigned int proc, const sgx_ocall_table_t *ocall_tabl
 
     if (is_builtin_ocall(proc))
     {
-        if (!m_page_readiness_txn_active)
+        if (!m_page_readiness_txn_active.load(std::memory_order_acquire))
         {
             se_rdunlock(&m_rwlock);
             read_lock_released = true;
@@ -836,7 +850,7 @@ int CEnclave::ocall(const unsigned int proc, const sgx_ocall_table_t *ocall_tabl
         if (m_switchless)
             g_sl_funcs.sl_ocall_fallback_func_ptr(m_switchless);
 
-        if (!m_page_readiness_txn_active)
+        if (!m_page_readiness_txn_active.load(std::memory_order_acquire))
         {
             se_rdunlock(&m_rwlock);
             read_lock_released = true;
@@ -1199,6 +1213,13 @@ CEnclave* CEnclavePool::remove_enclave(const sgx_enclave_id_t enclave_id, sgx_st
         SE_TRACE(SE_TRACE_WARNING, "remove an unknown enclave\n");
         se_mutex_unlock(&m_enclave_mutex);
         return enclave;
+    }
+    if (enclave->is_readiness_txn_on_current_thread())
+    {
+        status = SGX_ERROR_INVALID_STATE;
+        SE_TRACE(SE_TRACE_WARNING, "rejecting reentrant sgx_destroy_enclave during active readiness ECALL\n");
+        se_mutex_unlock(&m_enclave_mutex);
+        return NULL;
     }
 
     enclave->destroy();

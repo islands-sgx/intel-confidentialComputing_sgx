@@ -84,6 +84,7 @@ public:
     sgx_status_t initialize(const se_file_t& file, CLoader &ldr, const uint64_t enclave_size, const uint32_t tcs_policy, const uint32_t enclave_version, const uint32_t tcs_min_pool);
     sgx_status_t set_ecall_page_readiness_table(const sgx_page_readiness_table_t *table);
     sgx_status_t set_ecall_page_readiness_backend(uint32_t backend);
+    bool is_readiness_txn_on_current_thread() const;
     void add_thread(tcs_t * const tcs, bool is_unallocated);
     void add_thread(CTrustThread * const trust_thread);
     const debug_enclave_info_t* get_debug_info();
@@ -148,7 +149,8 @@ private:
     uint32_t                m_page_readiness_backend;
     bool                    m_page_readiness_table_installed;
     bool                    m_page_readiness_broken;
-    bool                    m_page_readiness_txn_active;
+    std::atomic<bool>       m_page_readiness_txn_active;
+    pthread_t               m_page_readiness_txn_owner;
     std::mutex              m_page_readiness_mutex;
     std::vector<uint8_t>    m_page_readiness_bytes;
     std::vector<ecall_page_readiness_entry_t> m_page_readiness_entries;
