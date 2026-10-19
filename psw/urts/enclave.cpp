@@ -54,6 +54,56 @@
 int do_ecall(const int fn, const void *ocall_table, const void *ms, CTrustThread *trust_thread);
 int do_ocall(const bridge_fn_t bridge, void *ms);
 
+namespace {
+struct ReadinessTxnFrame
+{
+    explicit ReadinessTxnFrame(sgx_enclave_id_t id);
+    ~ReadinessTxnFrame();
+    sgx_enclave_id_t enclave_id;
+    ReadinessTxnFrame *previous;
+};
+
+thread_local ReadinessTxnFrame *current_readiness_txn = NULL;
+thread_local CEnclave *current_destroy_uninit = NULL;
+
+ReadinessTxnFrame::ReadinessTxnFrame(sgx_enclave_id_t id)
+    : enclave_id(id), previous(current_readiness_txn)
+{
+    current_readiness_txn = this;
+}
+
+ReadinessTxnFrame::~ReadinessTxnFrame()
+{
+    assert(current_readiness_txn == this);
+    current_readiness_txn = previous;
+}
+
+struct DestroyUninitFrame
+{
+    explicit DestroyUninitFrame(CEnclave *value)
+        : previous(current_destroy_uninit)
+    {
+        current_destroy_uninit = value;
+    }
+    ~DestroyUninitFrame()
+    {
+        current_destroy_uninit = previous;
+    }
+    CEnclave *previous;
+};
+}
+
+bool readiness_txn_on_current_thread(sgx_enclave_id_t enclave_id)
+{
+    for (ReadinessTxnFrame *frame = current_readiness_txn;
+         frame != NULL; frame = frame->previous)
+    {
+        if (frame->enclave_id == enclave_id)
+            return true;
+    }
+    return false;
+}
+
 CEnclave::CEnclave()
     : m_enclave_id(0)
     , m_start_addr(NULL)
@@ -80,8 +130,7 @@ CEnclave::CEnclave()
     , m_page_readiness_backend(PAGE_READINESS_BACKEND_KERNEL)
     , m_page_readiness_table_installed(false)
     , m_page_readiness_broken(false)
-    , m_page_readiness_txn_active(false)
-    , m_page_readiness_txn_owner(0)
+    , m_destroying(false)
 {
     memset(&m_enclave_info, 0, sizeof(debug_enclave_info_t));
     memset(&m_target_info, 0, sizeof(sgx_target_info_t));
@@ -285,8 +334,26 @@ static sgx_status_t readiness_errno_to_status(int error)
 
 bool CEnclave::is_readiness_txn_on_current_thread() const
 {
-    return m_page_readiness_txn_active.load(std::memory_order_acquire) &&
-           pthread_equal(m_page_readiness_txn_owner, pthread_self()) != 0;
+    return readiness_txn_on_current_thread(m_enclave_id);
+}
+
+bool CEnclave::mark_destroying()
+{
+    bool expected = false;
+    return m_destroying.compare_exchange_strong(expected, true,
+                                                std::memory_order_acq_rel);
+}
+
+void CEnclave::wait_for_active_calls()
+{
+    se_wtlock(&m_rwlock);
+    se_wtunlock(&m_rwlock);
+}
+
+sgx_status_t CEnclave::uninitialize_for_destroy()
+{
+    DestroyUninitFrame frame(this);
+    return ecall(ECMD_UNINIT_ENCLAVE, NULL, NULL);
 }
 
 sgx_status_t CEnclave::set_ecall_page_readiness_table(const sgx_page_readiness_table_t *table)
@@ -298,7 +365,8 @@ sgx_status_t CEnclave::set_ecall_page_readiness_table(const sgx_page_readiness_t
         return SGX_ERROR_INVALID_STATE;
 
     se_wtlock(&m_rwlock);
-    if (m_destroyed || m_page_readiness_table_set ||
+    if (m_destroyed || m_destroying.load(std::memory_order_acquire) ||
+        m_page_readiness_table_set ||
         m_page_readiness_started.load(std::memory_order_acquire) || m_switchless != NULL)
     {
         se_wtunlock(&m_rwlock);
@@ -431,8 +499,8 @@ sgx_status_t CEnclave::set_ecall_page_readiness_backend(uint32_t backend)
         return SGX_ERROR_INVALID_STATE;
 
     se_wtlock(&m_rwlock);
-    if (m_destroyed || !m_page_readiness_table_set ||
-        m_page_readiness_backend_set ||
+    if (m_destroyed || m_destroying.load(std::memory_order_acquire) ||
+        !m_page_readiness_table_set || m_page_readiness_backend_set ||
         m_page_readiness_started.load(std::memory_order_acquire))
     {
         se_wtunlock(&m_rwlock);
@@ -593,7 +661,9 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
     if (!se_try_rdlock(&m_rwlock))
         return SGX_ERROR_ENCLAVE_LOST;
 
-    if (m_destroyed)
+    if (m_destroyed ||
+        (m_destroying.load(std::memory_order_acquire) &&
+         !(proc == ECMD_UNINIT_ENCLAVE && current_destroy_uninit == this)))
     {
         se_rdunlock(&m_rwlock);
         return SGX_ERROR_ENCLAVE_LOST;
@@ -758,8 +828,7 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
 
         if (readiness_call)
         {
-            m_page_readiness_txn_owner = pthread_self();
-            m_page_readiness_txn_active.store(true, std::memory_order_release);
+            ReadinessTxnFrame frame(m_enclave_id);
             if (readiness_nonempty &&
                 m_page_readiness_backend == PAGE_READINESS_BACKEND_KERNEL)
             {
@@ -774,7 +843,6 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
                     SE_TRACE(SE_TRACE_WARNING,
                              "ATField kernel ACQUIRE failed selector=%d errno=%d\n",
                              proc, acquire_error);
-                    m_page_readiness_txn_active.store(false, std::memory_order_release);
                     trust_thread->decrease_ref();
                     se_rdunlock(&m_rwlock);
                     return readiness_errno_to_status(acquire_error);
@@ -783,7 +851,6 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
             }
 
             ret = do_ecall(proc, m_ocall_table, ms, trust_thread);
-            m_page_readiness_txn_active.store(false, std::memory_order_release);
 
             int release_error = 0;
             if (readiness_nonempty &&
@@ -831,7 +898,7 @@ int CEnclave::ocall(const unsigned int proc, const sgx_ocall_table_t *ocall_tabl
 
     if (is_builtin_ocall(proc))
     {
-        if (!m_page_readiness_txn_active.load(std::memory_order_acquire))
+        if (!readiness_txn_on_current_thread(m_enclave_id))
         {
             se_rdunlock(&m_rwlock);
             read_lock_released = true;
@@ -850,7 +917,7 @@ int CEnclave::ocall(const unsigned int proc, const sgx_ocall_table_t *ocall_tabl
         if (m_switchless)
             g_sl_funcs.sl_ocall_fallback_func_ptr(m_switchless);
 
-        if (!m_page_readiness_txn_active.load(std::memory_order_acquire))
+        if (!readiness_txn_on_current_thread(m_enclave_id))
         {
             se_rdunlock(&m_rwlock);
             read_lock_released = true;
@@ -866,9 +933,9 @@ int CEnclave::ocall(const unsigned int proc, const sgx_ocall_table_t *ocall_tabl
             //Probablly the enclave has been destroyed, so we can't get the read lock.
             error = SE_ERROR_READ_LOCK_FAIL;
         }
-        else if (m_destroyed)
+        else if (m_destroyed || m_destroying.load(std::memory_order_acquire))
         {
-            //Enclave has been destroyed, emulate that we fail to get read lock.
+            //Teardown has started; the OCALL must not resume the ECALL.
             se_rdunlock(&m_rwlock);
             error = SE_ERROR_READ_LOCK_FAIL;
         }
@@ -938,7 +1005,7 @@ sgx_status_t CEnclave::fill_tcs_mini_pool()
         if(se_try_rdlock(&m_rwlock))
         {
             //Maybe the enclave has been destroyed after acquire/release m_rwlock. See CEnclave::destroy()
-            if(m_destroyed)
+            if(m_destroyed || m_destroying.load(std::memory_order_acquire))
             {
                 se_rdunlock(&m_rwlock);
                 return SGX_ERROR_ENCLAVE_LOST;
@@ -1244,6 +1311,59 @@ CEnclave* CEnclavePool::remove_enclave(const sgx_enclave_id_t enclave_id, sgx_st
     se_mutex_unlock(&m_enclave_mutex);
 
     return enclave;
+}
+
+CEnclave *CEnclavePool::claim_destroy(const sgx_enclave_id_t enclave_id,
+                                      sgx_status_t &status)
+{
+    status = SGX_SUCCESS;
+    se_mutex_lock(&m_enclave_mutex);
+    Node<sgx_enclave_id_t, CEnclave*> *node =
+        m_enclave_list == NULL ? NULL : m_enclave_list->Find(enclave_id);
+    CEnclave *enclave = node == NULL ? NULL : node->value;
+    if (enclave == NULL)
+        status = SGX_ERROR_INVALID_ENCLAVE_ID;
+    else if (!enclave->mark_destroying())
+    {
+        status = SGX_ERROR_INVALID_STATE;
+        enclave = NULL;
+    }
+    else
+        enclave->atomic_inc_ref(); // Owner pin until the pool entry is removed.
+
+    se_mutex_unlock(&m_enclave_mutex);
+    return enclave;
+}
+
+sgx_status_t CEnclavePool::finish_destroy(CEnclave *enclave)
+{
+    enclave->destroy(); // May wait for an ECALL; never hold m_enclave_mutex here.
+
+    se_mutex_lock(&m_enclave_mutex);
+    Node<sgx_enclave_id_t, CEnclave*> *node =
+        m_enclave_list == NULL ? NULL :
+        m_enclave_list->Find(enclave->get_enclave_id());
+    if (node == NULL || node->value != enclave)
+    {
+        se_mutex_unlock(&m_enclave_mutex);
+        unref_enclave(enclave);
+        return SGX_ERROR_UNEXPECTED;
+    }
+
+    Node<sgx_enclave_id_t, CEnclave*> *removed =
+        m_enclave_list->Remove(enclave->get_enclave_id());
+    if (removed == m_enclave_list)
+        m_enclave_list = removed->next;
+    delete removed;
+
+    enclave->mark_zombie();
+    CTrustThreadPool *thread_pool = enclave->get_thread_pool();
+    if (thread_pool != NULL)
+        thread_pool->wake_threads();
+    se_mutex_unlock(&m_enclave_mutex);
+
+    unref_enclave(enclave); // Last ref deletes after the hardware teardown.
+    return SGX_SUCCESS;
 }
 
 void CEnclavePool::notify_debugger()

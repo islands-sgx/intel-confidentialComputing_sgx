@@ -141,11 +141,12 @@ extern "C" sgx_status_t sgx_get_target_info(
     if (!target_info)
         return SGX_ERROR_INVALID_PARAMETER;
 
-    CEnclave* enclave = CEnclavePool::instance()->get_enclave(enclave_id);
+    CEnclave* enclave = CEnclavePool::instance()->ref_enclave(enclave_id);
     if (!enclave) {
         return SGX_ERROR_INVALID_ENCLAVE_ID;
     }
     *target_info = enclave->get_target_info();
+    CEnclavePool::instance()->unref_enclave(enclave);
     return SGX_SUCCESS;
 }
 

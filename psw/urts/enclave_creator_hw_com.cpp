@@ -58,7 +58,7 @@ int EnclaveCreatorHW::initialize(sgx_enclave_id_t enclave_id)
     memset(&info, 0, sizeof(system_features_t));
     info.system_feature_set[0] = (uint64_t)1 << SYS_FEATURE_MSb;
 
-    CEnclave *enclave= CEnclavePool::instance()->get_enclave(enclave_id);
+    CEnclave *enclave= CEnclavePool::instance()->ref_enclave(enclave_id);
 
     if(enclave == NULL)
         return SGX_ERROR_INVALID_ENCLAVE_ID;
@@ -80,6 +80,8 @@ int EnclaveCreatorHW::initialize(sgx_enclave_id_t enclave_id)
     int status = enclave->ecall(ECMD_INIT_ENCLAVE, NULL, reinterpret_cast<void *>(&info));
     //free the tcs used by initialization;
     enclave->get_thread_pool()->reset();
+
+    CEnclavePool::instance()->unref_enclave(enclave);
 
     //Enclave initialization may fail caused by power transition.
     //The upper layer code will re-create enclave based on SGX_ERROR_ENCLAVE_LOST.

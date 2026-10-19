@@ -312,7 +312,7 @@ bool EnclaveCreatorHW::is_EDMM_supported(sgx_enclave_id_t enclave_id)
 {
     bool supported = false, driver_supported = false, cpu_edmm = false;
 
-    CEnclave *enclave = CEnclavePool::instance()->get_enclave(enclave_id);
+    CEnclave *enclave = CEnclavePool::instance()->ref_enclave(enclave_id);
     if (enclave == NULL)
         return false;
 
@@ -321,7 +321,7 @@ bool EnclaveCreatorHW::is_EDMM_supported(sgx_enclave_id_t enclave_id)
 
     //return value of get_enclave_version() considers the version of uRTS and enclave metadata
     supported = use_se_hw() && cpu_edmm && driver_supported && (enclave->get_enclave_version() >= SDK_VERSION_3_0);
-
+    CEnclavePool::instance()->unref_enclave(enclave);
     return supported;
 }
 

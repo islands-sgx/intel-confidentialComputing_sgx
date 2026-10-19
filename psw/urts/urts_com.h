@@ -677,28 +677,23 @@ sgx_status_t _create_enclave(const bool debug, se_file_handle_t pfile, se_file_t
 
 extern "C" sgx_status_t sgx_destroy_enclave(const sgx_enclave_id_t enclave_id)
 {
-    {
-        CEnclave* enclave = CEnclavePool::instance()->ref_enclave(enclave_id);
-
-        if(enclave)
-        {
-            debug_enclave_info_t *debug_info = const_cast<debug_enclave_info_t *>(enclave->get_debug_info());
-            generate_enclave_debug_event(URTS_EXCEPTION_PREREMOVEENCLAVE, debug_info);
-            enclave->destroy_uswitchless();
-            if (get_enclave_creator()->is_EDMM_supported(enclave->get_enclave_id()))
-                enclave->ecall(ECMD_UNINIT_ENCLAVE, NULL, NULL);
-            CEnclavePool::instance()->unref_enclave(enclave);
-        }
-    }
+    if (readiness_txn_on_current_thread(enclave_id))
+        return SGX_ERROR_INVALID_STATE;
 
     sgx_status_t status = SGX_SUCCESS;
-    CEnclave* enclave = CEnclavePool::instance()->remove_enclave(enclave_id, status);
+    CEnclave *enclave = CEnclavePool::instance()->claim_destroy(enclave_id, status);
+    if (enclave == NULL)
+        return status;
 
-    if (enclave)
-    {
-        delete enclave;
-    }
+    // Block new ordinary ECALLs, then drain readers before teardown side effects.
+    enclave->wait_for_active_calls();
+    debug_enclave_info_t *debug_info =
+        const_cast<debug_enclave_info_t *>(enclave->get_debug_info());
+    generate_enclave_debug_event(URTS_EXCEPTION_PREREMOVEENCLAVE, debug_info);
+    enclave->destroy_uswitchless();
+    if (get_enclave_creator()->is_EDMM_supported(enclave_id))
+        enclave->uninitialize_for_destroy();
 
-    return status;
+    return CEnclavePool::instance()->finish_destroy(enclave);
 }
 #endif

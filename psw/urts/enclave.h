@@ -62,6 +62,8 @@ struct ecall_page_readiness_entry_t
 
 class CLoader;
 
+bool readiness_txn_on_current_thread(sgx_enclave_id_t enclave_id);
+
 class CEnclave: private Uncopyable
 {
 public:
@@ -76,6 +78,9 @@ public:
     sgx_status_t ecall(const int proc, const void *ocall_table, void *ms, const bool is_fast = false);
     int ocall(const unsigned int proc, const sgx_ocall_table_t *ocall_table, void *ms);
     void destroy();
+    void wait_for_active_calls();
+    sgx_status_t uninitialize_for_destroy();
+    bool mark_destroying();
     uint32_t atomic_inc_ref() { return se_atomic_inc(&m_ref); }
     uint32_t atomic_dec_ref() { return se_atomic_dec(&m_ref); }
     uint32_t get_ref() { return m_ref; }
@@ -149,8 +154,7 @@ private:
     uint32_t                m_page_readiness_backend;
     bool                    m_page_readiness_table_installed;
     bool                    m_page_readiness_broken;
-    std::atomic<bool>       m_page_readiness_txn_active;
-    pthread_t               m_page_readiness_txn_owner;
+    std::atomic<bool>       m_destroying;
     std::mutex              m_page_readiness_mutex;
     std::vector<uint8_t>    m_page_readiness_bytes;
     std::vector<ecall_page_readiness_entry_t> m_page_readiness_entries;
@@ -172,6 +176,8 @@ public:
     CEnclave * ref_enclave(const sgx_enclave_id_t enclave_id);
     void unref_enclave(CEnclave *enclave);
     CEnclave * remove_enclave(const sgx_enclave_id_t enclave_id, sgx_status_t &status);
+    CEnclave * claim_destroy(const sgx_enclave_id_t enclave_id, sgx_status_t &status);
+    sgx_status_t finish_destroy(CEnclave *enclave);
     se_handle_t get_event(const void * const);
     void notify_debugger();
 private:

@@ -79,6 +79,8 @@ sgx_status_t SGXAPI sgx_set_ecall_page_readiness_table(
     const sgx_enclave_id_t enclave_id,
     const sgx_page_readiness_table_t *table)
 {
+    if (readiness_txn_on_current_thread(enclave_id))
+        return SGX_ERROR_INVALID_STATE;
     if (table == NULL || table->data == NULL)
         return SGX_ERROR_INVALID_PARAMETER;
 
@@ -96,6 +98,8 @@ sgx_status_t SGXAPI atfield_sgx_set_ecall_page_readiness_backend(
     const sgx_enclave_id_t enclave_id,
     const uint32_t backend)
 {
+    if (readiness_txn_on_current_thread(enclave_id))
+        return SGX_ERROR_INVALID_STATE;
     CEnclave *enclave = CEnclavePool::instance()->ref_enclave(enclave_id);
     if (enclave == NULL)
         return SGX_ERROR_INVALID_ENCLAVE_ID;
