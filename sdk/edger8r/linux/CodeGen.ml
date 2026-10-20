@@ -45,6 +45,7 @@ type enclave_content = Ast.enclave_content = {
 
   include_list : string list; (* include another .h *)
   import_exprs : Ast.import_decl list;  (* always empty list after finished reduce_import. *)
+  import_sources : string list;
   comp_defs    : Ast.composite_type list;
   tfunc_decls  : Ast.trusted_func   list;
   ufunc_decls  : Ast.untrusted_func list;
@@ -74,6 +75,7 @@ let empty_ec =
     enclave_name = "";
     include_list = [];
     import_exprs = [];
+    import_sources = [];
     comp_defs    = [];
     tfunc_decls  = [];
     ufunc_decls  = []; }
@@ -140,6 +142,7 @@ let parse_enclave_ast (e: Ast.enclave) =
       enclave_name = Util.to_c_identifier e.Ast.ename;
       include_list = List.rev !ac_include_list;
       import_exprs = List.rev !ac_import_exprs;
+      import_sources = List.map (fun ipd -> ipd.Ast.mname) (List.rev !ac_import_exprs);
       comp_defs    = List.rev !ac_comp_defs;
       tfunc_decls  = List.rev !ac_tfunc_decls;
       ufunc_decls  = List.rev !ac_ufunc_decls; }
@@ -2491,7 +2494,8 @@ let reduce_import (ec: enclave_content) =
         let filtered_ec =
           {empty_ec with
             tfunc_decls   =  List.fold_left(filter_one) ec.tfunc_decls match_ec.tfunc_decls;
-            ufunc_decls   =  List.fold_left(filter_one) ec.ufunc_decls match_ec.ufunc_decls; }
+            ufunc_decls   =  List.fold_left(filter_one) ec.ufunc_decls match_ec.ufunc_decls;
+            import_sources = ec.import_sources; }
         in
         acc @ filtered_ec::[]
       else
@@ -2553,28 +2557,49 @@ let reduce_import (ec: enclave_content) =
   let imported_ec_list = import_funcs ["*"] (ec::[])
   in
   (* combine two EDLs by appending items except import. *)
+  let append_unique xs ys =
+    List.rev (List.fold_left
+      (fun acc item -> if List.mem item acc then acc else item :: acc)
+      (List.rev xs) ys)
+  in
   let combine (acc: enclave_content) (ec2: enclave_content) =
     { acc with
         include_list = acc.include_list @ ec2.include_list;
         import_exprs = [];
+        import_sources = append_unique acc.import_sources ec2.import_sources;
         comp_defs    = acc.comp_defs   @ ec2.comp_defs;
         tfunc_decls  = acc.tfunc_decls @ ec2.tfunc_decls;
         ufunc_decls  = acc.ufunc_decls @ ec2.ufunc_decls; }
   in
   List.fold_left (combine) (List.hd imported_ec_list) (List.tl imported_ec_list)
 
+(* Validate an EDL and return its resolved AST-derived declaration content. *)
+let resolve_enclave (e: Ast.enclave) =
+  reduce_import (parse_enclave_ast e)
+
+let validate_enclave (ec: enclave_content) (header_only: bool) =
+  check_duplication ec;
+  check_structure ec;
+  check_allow_list ec;
+  if not header_only then check_priv_funcs ec
+
+let prepare_enclave (e: Ast.enclave) (header_only: bool) =
+  let ec = resolve_enclave e in
+  validate_enclave ec header_only;
+  ec
+
+let gen_abi_json (e: Ast.enclave) (input: string) =
+  AbiExport.to_json (prepare_enclave e false) input
+
 (* Generate the Enclave code. *)
 let gen_enclave_code (e: Ast.enclave) (ep: edger8r_params) =
-  let ec = reduce_import (parse_enclave_ast e) in
+  let ec = resolve_enclave e in
     g_use_prefix := ep.use_prefix;
     g_untrusted_dir := ep.untrusted_dir;
     g_trusted_dir := ep.trusted_dir;
     create_dir ep.untrusted_dir;
     create_dir ep.trusted_dir;
-    check_duplication ec;
-    check_structure ec;
-    check_allow_list ec;
-    (if not ep.header_only then check_priv_funcs ec);
+    validate_enclave ec ep.header_only;
     if Plugin.available() then
       Plugin.gen_edge_routines ec ep
     else (

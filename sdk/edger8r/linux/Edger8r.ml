@@ -38,9 +38,14 @@ let _ =
 
   let real_ast_handler fname =
     try
-      CodeGen.gen_enclave_code (CodeGen.start_parsing fname) cmd_params
+      let ast = CodeGen.start_parsing fname in
+      if cmd_params.Util.dump_abi_json
+      then print_endline (CodeGen.gen_abi_json ast fname)
+      else CodeGen.gen_enclave_code ast cmd_params
     with
       Failure s -> (Printf.eprintf "error: %s\n" s; exit (-1))
   in
     if cmd_params.Util.input_files = [] then Util.usage progname
+    else if cmd_params.Util.dump_abi_json && List.length cmd_params.Util.input_files <> 1
+    then (Printf.eprintf "error: --dump-abi-json requires exactly one input file\n"; exit 1)
     else List.iter real_ast_handler cmd_params.Util.input_files

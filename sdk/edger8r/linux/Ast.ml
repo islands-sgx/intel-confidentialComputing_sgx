@@ -220,6 +220,7 @@ type enclave_content = {
 
   include_list : string list;
   import_exprs : import_decl list;
+  import_sources : string list;
   comp_defs    : composite_type list;
   tfunc_decls  : trusted_func   list;
   ufunc_decls  : untrusted_func list;

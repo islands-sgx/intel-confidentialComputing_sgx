@@ -1,0 +1,6 @@
+enclave {
+    from "imports/nested.edl" import nested_ecall;
+    trusted {
+        public Payload imported_ecall([in, size=payload_size] Payload* payload, size_t payload_size);
+    };
+};

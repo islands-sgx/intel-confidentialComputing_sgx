@@ -14,6 +14,10 @@ all: build | $(BUILD_DIR)
 build:
 	ocamlbuild -cflags -ccopt,-fpie,-ccopt,-fcf-protection -lflags -runtime-variant,_pic,-ccopt,-pie,-ccopt -lflag "-Wl,-z,relro,-z,now,-z,noexecstack" -no-links -libs str,unix Edger8r.native
 
+.PHONY: test
+test: build
+	bun test ./tests/abi.test.ts
+
 $(BUILD_DIR):
 	@$(MKDIR) $@
 

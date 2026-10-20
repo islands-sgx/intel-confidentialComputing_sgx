@@ -1,0 +1,45 @@
+enclave {
+    struct Pair {
+        int32_t left;
+        uint8_t right;
+    };
+    union PayloadValue {
+        int32_t number;
+        Payload payload;
+    };
+    enum Mode {
+        MODE_AUTO,
+        MODE_FIXED=2
+    };
+
+    from "imports/common.edl" import imported_ecall, nested_ecall;
+    from "imports/other/common.edl" import collision_ecall;
+
+    trusted {
+        public int32_t root_entry(
+            [in, size=length] uint8_t* bytes,
+            [in, size=length] int32_t** indirect,
+            [in, out, count=capacity] uint32_t* values,
+            size_t length,
+            size_t capacity,
+            Payload payload,
+            struct Pair pair,
+            union PayloadValue variant,
+            enum Mode mode,
+            [in] uint8_t fixed[3],
+            [in, count=3] uint8_t* fixed_count,
+            [in, size=4] uint8_t* four_bytes
+        );
+        int32_t private_worker([out, count=capacity] uint32_t* output, size_t capacity);
+        public void switchless_entry(
+            [in, string] char* text,
+            [in, wstring] wchar_t* wide,
+            [user_check] void* opaque
+        ) transition_using_threads;
+    };
+
+    untrusted {
+        void report([in, size=bytes_len] uint8_t* bytes, size_t bytes_len)
+            allow(root_entry, private_worker) propagate_errno transition_using_threads;
+    };
+};
