@@ -69,6 +69,7 @@ let usage (progname: string) =
 --trusted             Generate trusted proxy and bridge\n\
 --untrusted-dir <dir> Specify the directory for saving untrusted code\n\
 --trusted-dir   <dir> Specify the directory for saving trusted code\n\
+--dump-abi-json       Export the parsed EDL ABI as JSON to stdout\n\
 --help                Print this help message\n";
   eprintf "\n\
 If neither `--untrusted' nor `--trusted' is specified, generate both.\n";
@@ -78,6 +79,7 @@ If neither `--untrusted' nor `--trusted' is specified, generate both.\n";
 (* Command line parsing facilities. *)
 type edger8r_params = {
   input_files   : string list;
+  dump_abi_json : bool;
   use_prefix    : bool;
   header_only   : bool;
   gen_untrusted : bool;         (* User specified `--untrusted' *)
@@ -104,6 +106,7 @@ let path_separator : char =
 let rec parse_cmdline (progname: string) (cmdargs: string list) =
   let use_pref = ref false in
   let hd_only  = ref false in
+  let abi_json = ref false in
   let untrusted= ref false in
   let trusted  = ref false in
   let u_dir    = ref "." in
@@ -117,6 +120,7 @@ let rec parse_cmdline (progname: string) (cmdargs: string list) =
           match String.lowercase_ascii op with
               "--use-prefix" -> use_pref := true; local_parser ops
             | "--header-only"-> hd_only := true; local_parser ops
+            | "--dump-abi-json" -> abi_json := true; local_parser ops
             | "--untrusted"  -> untrusted := true; local_parser ops
             | "--trusted"    -> trusted := true; local_parser ops
             | "--untrusted-dir" ->
@@ -140,7 +144,8 @@ let rec parse_cmdline (progname: string) (cmdargs: string list) =
   in
     local_parser cmdargs;
     let opt =
-      { input_files = List.rev !files; use_prefix = !use_pref;
+      { input_files = List.rev !files; dump_abi_json = !abi_json;
+        use_prefix = !use_pref;
         header_only = !hd_only; gen_untrusted = true; gen_trusted = true;
         untrusted_dir = !u_dir; trusted_dir = !t_dir;
       }

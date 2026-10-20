@@ -1,0 +1,5 @@
+enclave {
+    trusted {
+        public int32_t collision_ecall(int32_t value);
+    };
+};
