@@ -778,12 +778,36 @@ bool CMetadata::get_time(uint32_t *date)
     assert(date != NULL);
 
     time_t rawtime = 0;
-    if(time( &rawtime) == -1)
+    const char *source_date_epoch = getenv("SOURCE_DATE_EPOCH");
+    if(source_date_epoch != NULL)
+    {
+        if(*source_date_epoch == '\0')
+            return false;
+        for(const char *digit = source_date_epoch; *digit != '\0'; ++digit)
+        {
+            if(*digit < '0' || *digit > '9')
+                return false;
+        }
+
+        errno = 0;
+        char *endptr = NULL;
+        unsigned long long epoch = strtoull(source_date_epoch, &endptr, 10);
+        if(errno == ERANGE || endptr == source_date_epoch || *endptr != '\0' ||
+            epoch > static_cast<unsigned long long>(std::numeric_limits<time_t>::max()))
+            return false;
+        rawtime = static_cast<time_t>(epoch);
+    }
+    else if(time(&rawtime) == -1)
+    {
         return false;
-    struct tm *timeinfo = gmtime(&rawtime);
-    if(timeinfo  == NULL)
+    }
+
+    struct tm timeinfo;
+    if(gmtime_r(&rawtime, &timeinfo) == NULL)
         return false;
-    uint32_t tmp_date = (timeinfo->tm_year+1900)*10000 + (timeinfo->tm_mon+1)*100 + timeinfo->tm_mday;
+    if(source_date_epoch != NULL && (timeinfo.tm_year < 70 || timeinfo.tm_year > 8099))
+        return false;
+    uint32_t tmp_date = (timeinfo.tm_year+1900)*10000 + (timeinfo.tm_mon+1)*100 + timeinfo.tm_mday;
     std::stringstream ss;
     ss<<"0x"<<tmp_date;
     ss>>std::hex>>tmp_date;
