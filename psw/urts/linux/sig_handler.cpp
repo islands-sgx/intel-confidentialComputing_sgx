@@ -44,6 +44,7 @@
 #include <sys/auxv.h>
 #include <elf.h>
 #include "se_error_internal.h"
+#include "atfield_lease_cpu.h"
 
 
 
@@ -321,6 +322,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
         void *ocall_table = reinterpret_cast<void *>(user_data[0]);
         if(trust_thread == NULL)
         {
+            (void)atfield_lease_cpu_exit();
             run->user_data = SGX_ERROR_UNEXPECTED;
             return 0;
         }
@@ -328,6 +330,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
         CEnclave *enclave = trust_thread->get_enclave();
         if(enclave == NULL)
         {
+            (void)atfield_lease_cpu_exit();
             run->user_data = SGX_ERROR_UNEXPECTED;
             return 0;
         }
@@ -344,6 +347,8 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
             {
                 //for vDSO handler, we have to return error code to trts 
                 //instead of calling old signal handler if registered
+                if (atfield_lease_cpu_exit() != 0)
+                    ret = SGX_ERROR_UNEXPECTED;
                 run->user_data = (__u64)ret;
                 return 0;
             }
@@ -357,6 +362,14 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
     }
     else if(run->function == SE_EEXIT)
     {
+        // The kernel has exited the enclave. Restore the host mask before
+        // running an OCALL or returning to the application.
+        if (atfield_lease_cpu_exit() != 0)
+        {
+            run->user_data = SGX_ERROR_UNEXPECTED;
+            return 0;
+        }
+
         //return 0 for normal enclave ecall return
         //return EENTER after invoking proper ocall with runtime specific convention
         if(rdi == OCMD_ERET)
@@ -379,7 +392,22 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
                 trust_thread, trust_thread->get_tcs());
             if(status == (int)SE_ERROR_READ_LOCK_FAIL)
             {
-                run->user_data = SE_ERROR_READ_LOCK_FAIL;
+                if (atfield_lease_cpu_refresh_host() != 0)
+                    run->user_data = SGX_ERROR_UNEXPECTED;
+                else
+                    run->user_data = SE_ERROR_READ_LOCK_FAIL;
+                return 0;
+            }
+            // OCALL code may change this thread's affinity. Capture it on the
+            // host before selecting the leased CPU again.
+            if (atfield_lease_cpu_refresh_host() != 0)
+            {
+                run->user_data = SGX_ERROR_UNEXPECTED;
+                return 0;
+            }
+            if (atfield_lease_cpu_enter() != 0)
+            {
+                run->user_data = SGX_ERROR_UNEXPECTED;
                 return 0;
             }
             //move the ocall return result to rsi and set rdi to ECMD_ORET for ocall return to trts
@@ -395,10 +423,20 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
     else if(run->function == SE_EENTER)
     {
         //enclave may lose EPC context due to power events
+        if (atfield_lease_cpu_exit() != 0)
+        {
+            run->user_data = SGX_ERROR_UNEXPECTED;
+            return 0;
+        }
         run->user_data = SGX_ERROR_ENCLAVE_LOST;
         return 0;
     }
     
+    if (atfield_lease_cpu_exit() != 0)
+    {
+        run->user_data = SGX_ERROR_UNEXPECTED;
+        return 0;
+    }
     return 0;
 }
 
@@ -426,12 +464,19 @@ int do_ecall(const int fn, const void *ocall_table, const void *ms, CTrustThread
     if((pid_t)(eid >> 32) != getpid())
         return SGX_ERROR_ENCLAVE_LOST;
 #endif
+
+    AtfieldLeaseCpuScope lease_scope(fn);
+    if (lease_scope.begin_error() != 0)
+        return SGX_ERROR_UNEXPECTED;
     
     tcs_t *tcs = trust_thread->get_tcs();
     
     if(vdso_sgx_enter_enclave == NULL)
     {
-        status = enter_enclave(tcs, fn, ocall_table, ms, trust_thread);
+        // This lease transition is available only at the VDSO boundary.
+        status = lease_scope.active()
+            ? SGX_ERROR_UNEXPECTED
+            : enter_enclave(tcs, fn, ocall_table, ms, trust_thread);
     }
     else
     {
@@ -443,18 +488,28 @@ int do_ecall(const int fn, const void *ocall_table, const void *ms, CTrustThread
         run.tcs = (__u64)tcs;
         run.user_handler = (__u64)sgx_urts_vdso_handler;
         run.user_data = (__u64) user_data;
-        int ret = vdso_sgx_enter_enclave_wrapper((unsigned long)fn, (unsigned long)ms, (unsigned long)ocall_table, SE_EENTER,
-            0, 0, &run);
-        if(ret == 0)
-        {
-            status = (int)run.user_data;
-        }
-        else
+        if (lease_scope.enter() != 0)
         {
             status = SGX_ERROR_UNEXPECTED;
         }
+        else
+        {
+            int ret = vdso_sgx_enter_enclave_wrapper((unsigned long)fn, (unsigned long)ms, (unsigned long)ocall_table, SE_EENTER,
+                0, 0, &run);
+            if(ret == 0)
+            {
+                status = (int)run.user_data;
+            }
+            else
+            {
+                status = SGX_ERROR_UNEXPECTED;
+            }
+        }
     }
     
+    if (lease_scope.finish() != 0)
+        status = SGX_ERROR_UNEXPECTED;
+
     return status;
 }
 
