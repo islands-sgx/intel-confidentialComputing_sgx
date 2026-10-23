@@ -91,7 +91,8 @@ static thread_local LeaseState g_state;
 
 static void log_error(const char *message, size_t length)
 {
-    (void)write(STDERR_FILENO, message, length);
+    const ssize_t ignored = write(STDERR_FILENO, message, length);
+    (void)ignored;
 }
 
 static void initialize_config()

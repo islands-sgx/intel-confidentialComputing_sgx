@@ -88,6 +88,7 @@ OBJ1 := enclave.o         \
 OBJ2 := urts.o             \
         misc.o             \
         sig_handler.o      \
+        atfield_lease_cpu.o \
         debugger_support.o \
         get_thread_id.o    \
         urts_emm.o
