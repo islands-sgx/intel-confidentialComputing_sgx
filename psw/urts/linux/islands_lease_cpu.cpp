@@ -97,7 +97,7 @@ static void log_error(const char *message, size_t length)
 
 static void initialize_config()
 {
-    const char *value = getenv("ISLANDS_LEASE_CPU");
+    const char *value = getenv("ISLANDS_ECALL_CPU");
     if (value == NULL)
         return;
 
@@ -105,7 +105,7 @@ static void initialize_config()
     {
         g_config.error = EINVAL;
         static const char message[] =
-            "ISLANDS_LEASE_CPU: expected a decimal CPU index\n";
+            "ISLANDS_ECALL_CPU: expected a decimal CPU index\n";
         log_error(message, sizeof(message) - 1);
         return;
     }
@@ -118,7 +118,7 @@ static void initialize_config()
     {
         g_config.error = EINVAL;
         static const char message[] =
-            "ISLANDS_LEASE_CPU: invalid CPU index\n";
+            "ISLANDS_ECALL_CPU: invalid CPU index\n";
         log_error(message, sizeof(message) - 1);
         return;
     }
@@ -220,12 +220,12 @@ int LeaseState::set_host_mask(LeaseState &state, bool force)
             first_error = error;
         state.sticky_error = first_error;
         static const char message[] =
-            "ISLANDS_LEASE_CPU: restoring host affinity failed\n";
+            "ISLANDS_ECALL_CPU: restoring host affinity failed\n";
         log_error(message, sizeof(message) - 1);
     }
 
     static const char fatal_message[] =
-        "ISLANDS_LEASE_CPU: cannot restore host affinity; terminating\n";
+        "ISLANDS_ECALL_CPU: cannot restore host affinity; terminating\n";
     log_error(fatal_message, sizeof(fatal_message) - 1);
     abort();
 }
@@ -251,7 +251,7 @@ static int set_lease_mask(LeaseState &state)
     int error = errno;
     state.sticky_error = error;
     static const char message[] =
-        "ISLANDS_LEASE_CPU: selecting leased CPU failed\n";
+        "ISLANDS_ECALL_CPU: selecting leased CPU failed\n";
     log_error(message, sizeof(message) - 1);
     (void)LeaseState::set_host_mask(state, true);
     return error;
@@ -270,7 +270,7 @@ static int refresh_host_mask(LeaseState &state)
         int error = errno;
         state.sticky_error = error;
         static const char message[] =
-            "ISLANDS_LEASE_CPU: refreshing host affinity failed\n";
+            "ISLANDS_ECALL_CPU: refreshing host affinity failed\n";
         log_error(message, sizeof(message) - 1);
         (void)LeaseState::set_host_mask(state, true);
         return error;
@@ -280,7 +280,7 @@ static int refresh_host_mask(LeaseState &state)
     {
         state.sticky_error = EINVAL;
         static const char message[] =
-            "ISLANDS_LEASE_CPU: host affinity includes leased CPU\n";
+            "ISLANDS_ECALL_CPU: host affinity includes leased CPU\n";
         log_error(message, sizeof(message) - 1);
         (void)LeaseState::set_host_mask(state, true);
         return EINVAL;
@@ -350,7 +350,7 @@ extern "C" ISLANDS_LEASE_HIDDEN int islands_lease_cpu_begin(int fn)
     if (error != 0)
     {
         static const char message[] =
-            "ISLANDS_LEASE_CPU: reading host affinity or validating CPU failed\n";
+            "ISLANDS_ECALL_CPU: reading host affinity or validating CPU failed\n";
         log_error(message, sizeof(message) - 1);
         return -error;
     }

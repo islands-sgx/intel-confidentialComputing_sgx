@@ -58,6 +58,10 @@ Documentation
 - [Intel(R) SGX for Linux\* OS](https://www.intel.com/content/www/us/en/developer/tools/software-guard-extensions/linux-overview.html) project home page on [Intel Developer Zone](https://www.intel.com/content/www/us/en/developer/overview.html)
 - [Intel(R) SGX Programming Reference](https://www.intel.com/content/dam/develop/external/us/en/documents/329298-002-629101.pdf)
 
+### Linux URTS ECALL CPU lease
+
+The Linux URTS CPU lease is opt-in. Set `ISLANDS_ECALL_CPU` to a decimal CPU index to run enclave execution on that CPU while the host thread retains its original affinity outside enclave execution. The selected CPU must be outside the host thread's current affinity mask. If the variable is unset, URTS follows the ordinary ECALL path and does not change thread affinity.
+
 Quick Start with Docker and Docker Compose
 -----------------------------------------
 
