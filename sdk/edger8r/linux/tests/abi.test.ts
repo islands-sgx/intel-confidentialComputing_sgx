@@ -108,7 +108,7 @@ test("exports the resolved AST ABI and matches generated edge tables", () => {
   const golden = JSON.parse(readFileSync(goldenPath, "utf8"));
   expect(abi).toEqual(golden);
 
-  expect(abi.schema).toBe("atfield-edl-abi-v1");
+  expect(abi.schema).toBe("islands-edl-abi-v1");
   expect(abi.tool).toEqual({
     name: "sgx_edger8r",
     fork: "islands-sgx/intel-confidentialComputing_sgx",

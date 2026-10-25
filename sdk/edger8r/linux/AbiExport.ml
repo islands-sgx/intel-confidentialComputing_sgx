@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  *)
 
-let schema = "atfield-edl-abi-v1"
+let schema = "islands-edl-abi-v1"
 let tool_fork = "islands-sgx/intel-confidentialComputing_sgx"
 
 let json_string value =
