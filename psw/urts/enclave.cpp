@@ -512,7 +512,7 @@ sgx_status_t CEnclave::set_ecall_page_readiness_backend(uint32_t backend)
         if (!m_dbg_flag)
         {
             SE_TRACE(SE_TRACE_WARNING,
-                     "ATField userspace readiness requires a debug enclave\n");
+                     "Islands userspace readiness requires a debug enclave\n");
             se_wtunlock(&m_rwlock);
             return SGX_ERROR_FEATURE_NOT_SUPPORTED;
         }
@@ -522,7 +522,7 @@ sgx_status_t CEnclave::set_ecall_page_readiness_backend(uint32_t backend)
                                     m_page_readiness_rvas[i]))
             {
                 SE_TRACE(SE_TRACE_WARNING,
-                         "ATField userspace readiness target is not signed readable REG RVA=0x%llx\n",
+                         "Islands userspace readiness target is not signed readable REG RVA=0x%llx\n",
                          (unsigned long long)m_page_readiness_rvas[i]);
                 se_wtunlock(&m_rwlock);
                 return SGX_ERROR_INVALID_PARAMETER;
@@ -542,14 +542,14 @@ sgx_status_t CEnclave::set_ecall_page_readiness_backend(uint32_t backend)
     }
     enclave_hash[sizeof(enclave_hash) - 1] = '\0';
     SE_TRACE(SE_TRACE_NOTICE,
-             "ATField readiness backend=%s MR_ENCLAVE=%s selectors=%llu target_pages=%llu\n",
+             "Islands readiness backend=%s MR_ENCLAVE=%s selectors=%llu target_pages=%llu\n",
              backend == PAGE_READINESS_BACKEND_KERNEL ? "kernel" : "userspace",
              enclave_hash,
              (unsigned long long)m_page_readiness_entries.size(),
              (unsigned long long)m_page_readiness_rvas.size());
     for (size_t i = 0; i < m_page_readiness_rvas.size(); ++i)
     {
-        SE_TRACE(SE_TRACE_DEBUG, "ATField readiness target RVA=0x%llx\n",
+        SE_TRACE(SE_TRACE_DEBUG, "Islands readiness target RVA=0x%llx\n",
                  (unsigned long long)m_page_readiness_rvas[i]);
     }
 
@@ -687,7 +687,7 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
             if (m_page_readiness_broken)
             {
                 SE_TRACE(SE_TRACE_WARNING,
-                         "ATField readiness BROKEN; rejecting selector=%d\n", proc);
+                         "Islands readiness BROKEN; rejecting selector=%d\n", proc);
                 se_rdunlock(&m_rwlock);
                 return SGX_ERROR_INVALID_STATE;
             }
@@ -734,14 +734,14 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
                                             m_readable_reg_rvas.end(), rva))
                     {
                         SE_TRACE(SE_TRACE_WARNING,
-                                 "ATField userspace readiness rejected MR page RVA=0x%llx selector=%d\n",
+                                 "Islands userspace readiness rejected MR page RVA=0x%llx selector=%d\n",
                                  (unsigned long long)rva, proc);
                         se_rdunlock(&m_rwlock);
                         return SGX_ERROR_INVALID_PARAMETER;
                     }
 
                     SE_TRACE(SE_TRACE_DEBUG,
-                             "ATField userspace readiness touching MR_ENCLAVE page RVA=0x%llx selector=%d\n",
+                             "Islands userspace readiness touching MR_ENCLAVE page RVA=0x%llx selector=%d\n",
                              (unsigned long long)rva, proc);
                     const uintptr_t address = (uintptr_t)m_start_addr + (uintptr_t)rva;
                     const volatile uint8_t touched = *(const volatile uint8_t *)address;
@@ -841,7 +841,7 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
                 if (acquire_error != 0)
                 {
                     SE_TRACE(SE_TRACE_WARNING,
-                             "ATField kernel ACQUIRE failed selector=%d errno=%d\n",
+                             "Islands kernel ACQUIRE failed selector=%d errno=%d\n",
                              proc, acquire_error);
                     trust_thread->decrease_ref();
                     se_rdunlock(&m_rwlock);
@@ -860,7 +860,7 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
                 if (release_error != 0)
                 {
                     SE_TRACE(SE_TRACE_WARNING,
-                             "ATField kernel RELEASE failed selector=%d errno=%d; BROKEN latched\n",
+                             "Islands kernel RELEASE failed selector=%d errno=%d; BROKEN latched\n",
                              proc, release_error);
                     m_page_readiness_broken = true;
                 }

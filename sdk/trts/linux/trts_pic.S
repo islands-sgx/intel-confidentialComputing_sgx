@@ -261,7 +261,7 @@ DECLARE_GLOBAL_FUNC enclave_entry
     movl    (%xax), %eax
     cmpl    $ENCLAVE_CRASHED, %eax
     je      .Ldo_handler_stack
-    lea_pic __atfield_active, %xax
+    lea_pic __islands_active, %xax
     movl    (%xax), %eax
     testl   %eax, %eax
     jne     .Ldo_handler_active

@@ -38,7 +38,7 @@
 #include "loader.h"
 #include "binparser.h"
 #include "shared_object_parser.h"
-#include "atfield_sgx_signer_layout.h"
+#include "islands_sgx_signer_layout.h"
 
 #include <vector>
 
@@ -112,14 +112,14 @@ size_t get_xml_parameter_count();
 bool build_metadata_core(metadata_t *metadata, BinParser *parser,
                          SharedObjectParser *fips_parser,
                          const xml_parameter_t *parameter,
-                         atfield_sgx_signer_layout_result_v3 *result,
+                         islands_sgx_signer_layout_result_v3 *result,
                          uint8_t *meta_versions,
-                         std::vector<atfield_sgx_signer_static_tcs>
+                         std::vector<islands_sgx_signer_static_tcs>
                              *typed_result);
 bool finalize_metadata_core(metadata_t *metadata, const xml_parameter_t *parameter,
                             uint8_t meta_versions);
 bool refresh_signer_layout_result(const metadata_t *metadata,
-                                  atfield_sgx_signer_layout_result_v3 *result);
+                                  islands_sgx_signer_layout_result_v3 *result);
 bool update_metadata(const char *path, const metadata_t *metadata, uint64_t meta_offset);
 bool print_metadata(const char *path, const metadata_t *metadata);
 
@@ -138,7 +138,7 @@ public:
     sgx_misc_select_t get_config_desired_misc_select();
     uint8_t get_meta_versions() { return m_meta_verions; }
     uint64_t get_ordinary_image_end_rva() const { return m_ordinary_image_end; }
-    const std::vector<atfield_sgx_signer_static_tcs> &
+    const std::vector<islands_sgx_signer_static_tcs> &
     get_static_tcs_instances() const { return m_static_tcs_instances; }
 private:
     bool get_time(uint32_t *date);
@@ -174,7 +174,7 @@ private:
     create_param_t m_create_param;
     elrange_config_entry_t m_elrange_config_entry;
     std::vector <layout_t> m_layouts;
-    std::vector<atfield_sgx_signer_static_tcs> m_static_tcs_instances;
+    std::vector<islands_sgx_signer_static_tcs> m_static_tcs_instances;
     uint64_t m_rva;
     uint64_t m_ordinary_image_end;
     uint32_t m_gd_size;

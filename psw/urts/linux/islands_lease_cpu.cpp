@@ -2,7 +2,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "atfield_lease_cpu.h"
+#include "islands_lease_cpu.h"
 #include "rts_cmd.h"
 
 #include <cerrno>
@@ -97,7 +97,7 @@ static void log_error(const char *message, size_t length)
 
 static void initialize_config()
 {
-    const char *value = getenv("ATFIELD_LEASE_CPU");
+    const char *value = getenv("ISLANDS_LEASE_CPU");
     if (value == NULL)
         return;
 
@@ -105,7 +105,7 @@ static void initialize_config()
     {
         g_config.error = EINVAL;
         static const char message[] =
-            "ATFIELD_LEASE_CPU: expected a decimal CPU index\n";
+            "ISLANDS_LEASE_CPU: expected a decimal CPU index\n";
         log_error(message, sizeof(message) - 1);
         return;
     }
@@ -118,7 +118,7 @@ static void initialize_config()
     {
         g_config.error = EINVAL;
         static const char message[] =
-            "ATFIELD_LEASE_CPU: invalid CPU index\n";
+            "ISLANDS_LEASE_CPU: invalid CPU index\n";
         log_error(message, sizeof(message) - 1);
         return;
     }
@@ -220,12 +220,12 @@ int LeaseState::set_host_mask(LeaseState &state, bool force)
             first_error = error;
         state.sticky_error = first_error;
         static const char message[] =
-            "ATFIELD_LEASE_CPU: restoring host affinity failed\n";
+            "ISLANDS_LEASE_CPU: restoring host affinity failed\n";
         log_error(message, sizeof(message) - 1);
     }
 
     static const char fatal_message[] =
-        "ATFIELD_LEASE_CPU: cannot restore host affinity; terminating\n";
+        "ISLANDS_LEASE_CPU: cannot restore host affinity; terminating\n";
     log_error(fatal_message, sizeof(fatal_message) - 1);
     abort();
 }
@@ -251,7 +251,7 @@ static int set_lease_mask(LeaseState &state)
     int error = errno;
     state.sticky_error = error;
     static const char message[] =
-        "ATFIELD_LEASE_CPU: selecting leased CPU failed\n";
+        "ISLANDS_LEASE_CPU: selecting leased CPU failed\n";
     log_error(message, sizeof(message) - 1);
     (void)LeaseState::set_host_mask(state, true);
     return error;
@@ -270,7 +270,7 @@ static int refresh_host_mask(LeaseState &state)
         int error = errno;
         state.sticky_error = error;
         static const char message[] =
-            "ATFIELD_LEASE_CPU: refreshing host affinity failed\n";
+            "ISLANDS_LEASE_CPU: refreshing host affinity failed\n";
         log_error(message, sizeof(message) - 1);
         (void)LeaseState::set_host_mask(state, true);
         return error;
@@ -280,7 +280,7 @@ static int refresh_host_mask(LeaseState &state)
     {
         state.sticky_error = EINVAL;
         static const char message[] =
-            "ATFIELD_LEASE_CPU: host affinity includes leased CPU\n";
+            "ISLANDS_LEASE_CPU: host affinity includes leased CPU\n";
         log_error(message, sizeof(message) - 1);
         (void)LeaseState::set_host_mask(state, true);
         return EINVAL;
@@ -302,7 +302,7 @@ static int enter_scope(LeaseState &state)
 }
 }
 
-extern "C" ATFIELD_LEASE_HIDDEN int atfield_lease_cpu_begin(int fn)
+extern "C" ISLANDS_LEASE_HIDDEN int islands_lease_cpu_begin(int fn)
 {
     LeaseState &state = g_state;
 
@@ -350,7 +350,7 @@ extern "C" ATFIELD_LEASE_HIDDEN int atfield_lease_cpu_begin(int fn)
     if (error != 0)
     {
         static const char message[] =
-            "ATFIELD_LEASE_CPU: reading host affinity or validating CPU failed\n";
+            "ISLANDS_LEASE_CPU: reading host affinity or validating CPU failed\n";
         log_error(message, sizeof(message) - 1);
         return -error;
     }
@@ -374,12 +374,12 @@ extern "C" ATFIELD_LEASE_HIDDEN int atfield_lease_cpu_begin(int fn)
     return 1;
 }
 
-extern "C" ATFIELD_LEASE_HIDDEN int atfield_lease_cpu_enter(void)
+extern "C" ISLANDS_LEASE_HIDDEN int islands_lease_cpu_enter(void)
 {
     return set_lease_mask(g_state);
 }
 
-extern "C" ATFIELD_LEASE_HIDDEN int atfield_lease_cpu_exit(void)
+extern "C" ISLANDS_LEASE_HIDDEN int islands_lease_cpu_exit(void)
 {
     LeaseState &state = g_state;
     if (!state.active || state.depth == 0)
@@ -394,12 +394,12 @@ extern "C" ATFIELD_LEASE_HIDDEN int atfield_lease_cpu_exit(void)
     return error;
 }
 
-extern "C" ATFIELD_LEASE_HIDDEN int atfield_lease_cpu_refresh_host(void)
+extern "C" ISLANDS_LEASE_HIDDEN int islands_lease_cpu_refresh_host(void)
 {
     return refresh_host_mask(g_state);
 }
 
-extern "C" ATFIELD_LEASE_HIDDEN int atfield_lease_cpu_end(void)
+extern "C" ISLANDS_LEASE_HIDDEN int islands_lease_cpu_end(void)
 {
     LeaseState &state = g_state;
     if (!state.active || state.depth <= 0)

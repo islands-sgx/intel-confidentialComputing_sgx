@@ -656,7 +656,7 @@ end:
 
 
 bool refresh_signer_layout_result(const metadata_t *metadata,
-                                  atfield_sgx_signer_layout_result_v3 *result)
+                                  islands_sgx_signer_layout_result_v3 *result)
 {
     if (metadata == NULL || result == NULL)
         return false;
@@ -666,7 +666,7 @@ bool refresh_signer_layout_result(const metadata_t *metadata,
         (layout_size % sizeof(layout_t)) != 0)
         return false;
     const size_t layout_count = layout_size / sizeof(layout_t);
-    if (layout_count > ATFIELD_SGX_SIGNER_LAYOUT_MAX_RECORDS)
+    if (layout_count > ISLANDS_SGX_SIGNER_LAYOUT_MAX_RECORDS)
         return false;
     result->metadata_version = metadata->version;
     result->enclave_size = metadata->enclave_size;
@@ -679,9 +679,9 @@ bool refresh_signer_layout_result(const metadata_t *metadata,
 bool build_metadata_core(metadata_t *metadata, BinParser *parser,
                          SharedObjectParser *fips_parser,
                          const xml_parameter_t *parameter,
-                         atfield_sgx_signer_layout_result_v3 *result,
+                         islands_sgx_signer_layout_result_v3 *result,
                          uint8_t *meta_versions,
-                         std::vector<atfield_sgx_signer_static_tcs>
+                         std::vector<islands_sgx_signer_static_tcs>
                              *typed_result)
 {
     if (metadata == NULL || parser == NULL || parameter == NULL)
@@ -699,7 +699,7 @@ bool build_metadata_core(metadata_t *metadata, BinParser *parser,
     const uint32_t struct_size = result->struct_size;
     const uint32_t static_tcs_capacity = result->static_tcs_capacity;
     const uint32_t static_tcs_count = result->static_tcs_count;
-    atfield_sgx_signer_static_tcs *static_tcs = result->static_tcs;
+    islands_sgx_signer_static_tcs *static_tcs = result->static_tcs;
     memset(result, 0, sizeof(*result));
     result->abi_version = abi_version;
     result->struct_size = struct_size;
@@ -1454,7 +1454,7 @@ bool CMetadata::update_layout_entries()
                                  const layout_entry_t &td,
                                  uint64_t rva_delta) -> bool {
         if (m_static_tcs_instances.size() >=
-            ATFIELD_SGX_SIGNER_LAYOUT_MAX_RECORDS)
+            ISLANDS_SGX_SIGNER_LAYOUT_MAX_RECORDS)
             return false;
         if (tcs.rva > std::numeric_limits<uint64_t>::max() - rva_delta ||
             stack.rva > std::numeric_limits<uint64_t>::max() - rva_delta ||

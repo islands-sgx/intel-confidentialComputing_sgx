@@ -44,7 +44,7 @@
 #include <sys/auxv.h>
 #include <elf.h>
 #include "se_error_internal.h"
-#include "atfield_lease_cpu.h"
+#include "islands_lease_cpu.h"
 
 
 
@@ -322,7 +322,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
         void *ocall_table = reinterpret_cast<void *>(user_data[0]);
         if(trust_thread == NULL)
         {
-            (void)atfield_lease_cpu_exit();
+            (void)islands_lease_cpu_exit();
             run->user_data = SGX_ERROR_UNEXPECTED;
             return 0;
         }
@@ -330,7 +330,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
         CEnclave *enclave = trust_thread->get_enclave();
         if(enclave == NULL)
         {
-            (void)atfield_lease_cpu_exit();
+            (void)islands_lease_cpu_exit();
             run->user_data = SGX_ERROR_UNEXPECTED;
             return 0;
         }
@@ -347,7 +347,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
             {
                 //for vDSO handler, we have to return error code to trts 
                 //instead of calling old signal handler if registered
-                if (atfield_lease_cpu_exit() != 0)
+                if (islands_lease_cpu_exit() != 0)
                     ret = SGX_ERROR_UNEXPECTED;
                 run->user_data = (__u64)ret;
                 return 0;
@@ -364,7 +364,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
     {
         // The kernel has exited the enclave. Restore the host mask before
         // running an OCALL or returning to the application.
-        if (atfield_lease_cpu_exit() != 0)
+        if (islands_lease_cpu_exit() != 0)
         {
             run->user_data = SGX_ERROR_UNEXPECTED;
             return 0;
@@ -392,7 +392,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
                 trust_thread, trust_thread->get_tcs());
             if(status == (int)SE_ERROR_READ_LOCK_FAIL)
             {
-                if (atfield_lease_cpu_refresh_host() != 0)
+                if (islands_lease_cpu_refresh_host() != 0)
                     run->user_data = SGX_ERROR_UNEXPECTED;
                 else
                     run->user_data = SE_ERROR_READ_LOCK_FAIL;
@@ -400,12 +400,12 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
             }
             // OCALL code may change this thread's affinity. Capture it on the
             // host before selecting the leased CPU again.
-            if (atfield_lease_cpu_refresh_host() != 0)
+            if (islands_lease_cpu_refresh_host() != 0)
             {
                 run->user_data = SGX_ERROR_UNEXPECTED;
                 return 0;
             }
-            if (atfield_lease_cpu_enter() != 0)
+            if (islands_lease_cpu_enter() != 0)
             {
                 run->user_data = SGX_ERROR_UNEXPECTED;
                 return 0;
@@ -423,7 +423,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
     else if(run->function == SE_EENTER)
     {
         //enclave may lose EPC context due to power events
-        if (atfield_lease_cpu_exit() != 0)
+        if (islands_lease_cpu_exit() != 0)
         {
             run->user_data = SGX_ERROR_UNEXPECTED;
             return 0;
@@ -432,7 +432,7 @@ static int sgx_urts_vdso_handler(long rdi, long rsi, long rdx, long ursp, long r
         return 0;
     }
     
-    if (atfield_lease_cpu_exit() != 0)
+    if (islands_lease_cpu_exit() != 0)
     {
         run->user_data = SGX_ERROR_UNEXPECTED;
         return 0;
@@ -465,7 +465,7 @@ int do_ecall(const int fn, const void *ocall_table, const void *ms, CTrustThread
         return SGX_ERROR_ENCLAVE_LOST;
 #endif
 
-    AtfieldLeaseCpuScope lease_scope(fn);
+    IslandsLeaseCpuScope lease_scope(fn);
     if (lease_scope.begin_error() != 0)
         return SGX_ERROR_UNEXPECTED;
     

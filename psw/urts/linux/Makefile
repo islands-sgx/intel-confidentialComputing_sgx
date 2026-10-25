@@ -95,7 +95,7 @@ OBJ2 := urts.o               \
         enclave_creator_hw.o \
         misc.o               \
         sig_handler.o        \
-        atfield_lease_cpu.o  \
+        islands_lease_cpu.o  \
         debugger_support.o   \
         get_thread_id.o      \
         prd_css_util.o       \

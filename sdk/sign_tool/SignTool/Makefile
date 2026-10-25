@@ -58,12 +58,12 @@ OBJS     := $(CPP_OBJS) $(C_OBJS)
 
 vpath %.cpp $(DIR1):$(DIR2):$(DIR3):$(DIR4):$(DIR5):$(DIR6)
 
-ATFIELD_LAYOUT_OBJ := atfield_sgx_signer_layout.o
-ATFIELD_LAYOUT_LIB := libatfield_sgx_signer_layout.a
+ISLANDS_LAYOUT_OBJ := islands_sgx_signer_layout.o
+ISLANDS_LAYOUT_LIB := libislands_sgx_signer_layout.a
 
 .PHONY: all
-all: sgx_sign $(ATFIELD_LAYOUT_LIB) | $(BUILD_DIR)
-	@$(CP) sgx_sign $(ATFIELD_LAYOUT_LIB) $(BUILD_DIR)
+all: sgx_sign $(ISLANDS_LAYOUT_LIB) | $(BUILD_DIR)
+	@$(CP) sgx_sign $(ISLANDS_LAYOUT_LIB) $(BUILD_DIR)
 
 $(BUILD_DIR):
 	@$(MKDIR) $@
@@ -71,13 +71,13 @@ $(BUILD_DIR):
 sgx_sign: PRIVATE_LDLIBS  := -lpthread -lenclaveparser $(CRYPTO_LIB) -ldl
 sgx_sign: PRIVATE_LDFLAGS := -L$(LINUX_PSW_DIR)/urts/parser $(LDFLAGS)
 
-sgx_sign: $(OBJS) $(ATFIELD_LAYOUT_OBJ) enclaveparser
-	$(CXX) $(CXXFLAGS) $(OBJS) $(ATFIELD_LAYOUT_OBJ) $(PRIVATE_LDFLAGS) $(PRIVATE_LDLIBS) -o $@
+sgx_sign: $(OBJS) $(ISLANDS_LAYOUT_OBJ) enclaveparser
+	$(CXX) $(CXXFLAGS) $(OBJS) $(ISLANDS_LAYOUT_OBJ) $(PRIVATE_LDFLAGS) $(PRIVATE_LDLIBS) -o $@
 
-$(ATFIELD_LAYOUT_LIB): $(filter-out sign_tool.o,$(OBJS)) $(ATFIELD_LAYOUT_OBJ)
+$(ISLANDS_LAYOUT_LIB): $(filter-out sign_tool.o,$(OBJS)) $(ISLANDS_LAYOUT_OBJ)
 	$(AR) rcs $@ $^
 
-$(CPP_OBJS) $(ATFIELD_LAYOUT_OBJ): %.o: %.cpp
+$(CPP_OBJS) $(ISLANDS_LAYOUT_OBJ): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(C_OBJS):   %.o: $(DIR2)%.c
@@ -85,7 +85,7 @@ $(C_OBJS):   %.o: $(DIR2)%.c
 
 .PHONY: clean
 clean:
-	$(RM) *~ *.o sgx_sign $(ATFIELD_LAYOUT_LIB) $(BUILD_DIR)/sgx_sign $(BUILD_DIR)/$(ATFIELD_LAYOUT_LIB)
+	$(RM) *~ *.o sgx_sign $(ISLANDS_LAYOUT_LIB) $(BUILD_DIR)/sgx_sign $(BUILD_DIR)/$(ISLANDS_LAYOUT_LIB)
 	$(MAKE) -C $(LINUX_PSW_DIR)/urts/parser/ clean
 
 .PHONY: enclaveparser

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 
-#include "atfield_sgx_signer_layout.h"
+#include "islands_sgx_signer_layout.h"
 #include "elf_helper.h"
 #include "manage_metadata.h"
 #include "metadata.h"
@@ -13,22 +13,22 @@
 #include <utility>
 #include <vector>
 
-static_assert(sizeof(atfield_sgx_signer_layout_record) == sizeof(layout_t),
+static_assert(sizeof(islands_sgx_signer_layout_record) == sizeof(layout_t),
               "layout record ABI must match SGX DIR_LAYOUT");
-static_assert(sizeof(atfield_sgx_signer_layout_record) == 32,
+static_assert(sizeof(islands_sgx_signer_layout_record) == 32,
               "layout record ABI must be exactly 32 bytes");
-static_assert(offsetof(atfield_sgx_signer_layout_record, id) == offsetof(layout_entry_t, id), "id offset");
-static_assert(offsetof(atfield_sgx_signer_layout_record, second) == offsetof(layout_entry_t, attributes), "second offset");
-static_assert(offsetof(atfield_sgx_signer_layout_record, u32) == offsetof(layout_entry_t, page_count), "u32 offset");
-static_assert(offsetof(atfield_sgx_signer_layout_record, u64) == offsetof(layout_entry_t, rva), "u64 offset");
-static_assert(offsetof(atfield_sgx_signer_layout_record, words) == offsetof(layout_entry_t, content_size), "words offset");
-static_assert(offsetof(atfield_sgx_signer_layout_result_v3, records) == 40, "result alignment");
+static_assert(offsetof(islands_sgx_signer_layout_record, id) == offsetof(layout_entry_t, id), "id offset");
+static_assert(offsetof(islands_sgx_signer_layout_record, second) == offsetof(layout_entry_t, attributes), "second offset");
+static_assert(offsetof(islands_sgx_signer_layout_record, u32) == offsetof(layout_entry_t, page_count), "u32 offset");
+static_assert(offsetof(islands_sgx_signer_layout_record, u64) == offsetof(layout_entry_t, rva), "u64 offset");
+static_assert(offsetof(islands_sgx_signer_layout_record, words) == offsetof(layout_entry_t, content_size), "words offset");
+static_assert(offsetof(islands_sgx_signer_layout_result_v3, records) == 40, "result alignment");
 static_assert(PARAMETER_COUNT == 37, "XML parameter table changed unexpectedly");
 
 static int build_signer_layout_impl(
     const uint8_t *elf, size_t elf_size, const char *config_path,
-    atfield_sgx_signer_layout_result_v3 *out,
-    std::vector<atfield_sgx_signer_static_tcs> *typed_result)
+    islands_sgx_signer_layout_result_v3 *out,
+    std::vector<islands_sgx_signer_static_tcs> *typed_result)
 {
     if (elf == NULL || elf_size == 0 || config_path == NULL || out == NULL)
         return 1;
@@ -66,7 +66,7 @@ static int build_signer_layout_impl(
 
     metadata_t metadata;
     std::memset(&metadata, 0, sizeof(metadata));
-    std::vector<atfield_sgx_signer_static_tcs> typed;
+    std::vector<islands_sgx_signer_static_tcs> typed;
     uint8_t meta_versions = 0;
     if (!build_metadata_core(&metadata, parser.get(), NULL, parameter, out,
                              &meta_versions, &typed) ||
@@ -78,22 +78,22 @@ static int build_signer_layout_impl(
     return 0;
 }
 
-extern "C" int atfield_sgx_build_signer_layout_v3(
+extern "C" int islands_sgx_build_signer_layout_v3(
     const uint8_t *elf, size_t elf_size, const char *config_path,
-    atfield_sgx_signer_layout_result_v3 *out, size_t out_size)
+    islands_sgx_signer_layout_result_v3 *out, size_t out_size)
 {
     if (out == NULL || out_size < sizeof(*out) ||
-        out->abi_version != ATFIELD_SGX_SIGNER_LAYOUT_ABI_V3 ||
+        out->abi_version != ISLANDS_SGX_SIGNER_LAYOUT_ABI_V3 ||
         out->struct_size != sizeof(*out) ||
         (out->static_tcs_capacity != 0 && out->static_tcs == NULL))
         return 1;
     const uint32_t static_tcs_capacity = out->static_tcs_capacity;
-    atfield_sgx_signer_static_tcs *static_tcs = out->static_tcs;
+    islands_sgx_signer_static_tcs *static_tcs = out->static_tcs;
 
-    std::vector<atfield_sgx_signer_static_tcs> typed;
+    std::vector<islands_sgx_signer_static_tcs> typed;
     if (build_signer_layout_impl(elf, elf_size, config_path, out, &typed) !=
             0 ||
-        out->abi_version != ATFIELD_SGX_SIGNER_LAYOUT_ABI_V3 ||
+        out->abi_version != ISLANDS_SGX_SIGNER_LAYOUT_ABI_V3 ||
         out->struct_size != sizeof(*out) ||
         out->static_tcs_capacity != static_tcs_capacity ||
         out->static_tcs != static_tcs ||

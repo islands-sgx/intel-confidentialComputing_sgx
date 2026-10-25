@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 
-#ifndef ATFIELD_SGX_SIGNER_LAYOUT_H
-#define ATFIELD_SGX_SIGNER_LAYOUT_H
+#ifndef ISLANDS_SGX_SIGNER_LAYOUT_H
+#define ISLANDS_SGX_SIGNER_LAYOUT_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -10,18 +10,18 @@
 extern "C" {
 #endif
 
-#define ATFIELD_SGX_SIGNER_LAYOUT_MAX_RECORDS 1024u
+#define ISLANDS_SGX_SIGNER_LAYOUT_MAX_RECORDS 1024u
 
 /* Byte-for-byte representation of one SGX DIR_LAYOUT record. */
-typedef struct atfield_sgx_signer_layout_record {
+typedef struct islands_sgx_signer_layout_record {
     uint16_t id;
     uint16_t second;
     uint32_t u32;
     uint64_t u64;
     uint32_t words[4];
-} atfield_sgx_signer_layout_record;
+} islands_sgx_signer_layout_record;
 
-typedef struct atfield_sgx_signer_static_tcs {
+typedef struct islands_sgx_signer_static_tcs {
     uint64_t instance;
     uint64_t tcs_rva;
     uint64_t stack_bottom;
@@ -32,27 +32,27 @@ typedef struct atfield_sgx_signer_static_tcs {
     uint64_t td_top;
     uint64_t fs_base_rva;
     uint64_t gs_base_rva;
-} atfield_sgx_signer_static_tcs;
+} islands_sgx_signer_static_tcs;
 
-typedef struct atfield_sgx_signer_layout_result_v3 {
+typedef struct islands_sgx_signer_layout_result_v3 {
     uint32_t abi_version;
     uint32_t struct_size;
     uint64_t metadata_version;
     uint64_t enclave_size;
     uint64_t ordinary_image_end_rva;
     uint32_t layout_count;
-    atfield_sgx_signer_layout_record records[ATFIELD_SGX_SIGNER_LAYOUT_MAX_RECORDS];
+    islands_sgx_signer_layout_record records[ISLANDS_SGX_SIGNER_LAYOUT_MAX_RECORDS];
     uint32_t static_tcs_capacity;
     uint32_t static_tcs_count;
-    atfield_sgx_signer_static_tcs *static_tcs;
-} atfield_sgx_signer_layout_result_v3;
+    islands_sgx_signer_static_tcs *static_tcs;
+} islands_sgx_signer_layout_result_v3;
 
-#define ATFIELD_SGX_SIGNER_LAYOUT_ABI_V3 3u
+#define ISLANDS_SGX_SIGNER_LAYOUT_ABI_V3 3u
 
 /* Build metadata/layout only; no loading, hashing, signing, or file update. */
-int atfield_sgx_build_signer_layout_v3(
+int islands_sgx_build_signer_layout_v3(
     const uint8_t *elf, size_t elf_size, const char *config_path,
-    atfield_sgx_signer_layout_result_v3 *out, size_t out_size);
+    islands_sgx_signer_layout_result_v3 *out, size_t out_size);
 
 #ifdef __cplusplus
 }

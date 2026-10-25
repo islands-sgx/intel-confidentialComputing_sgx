@@ -105,7 +105,7 @@ bool BundleResourceContainer::GetStat(int index,
                    const_cast<mz_zip_archive*>(&m_ZipArchive), index)
                    ? true
                    : false;
-#ifdef ATFIELD_REPRODUCIBLE_ARCHIVES
+#ifdef ISLANDS_REPRODUCIBLE_ARCHIVES
     stat.modifiedTime = 0;
 #else
     stat.modifiedTime = zipStat.m_time;

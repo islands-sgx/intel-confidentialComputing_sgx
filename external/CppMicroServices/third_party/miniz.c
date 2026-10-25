@@ -170,7 +170,7 @@
 // If MINIZ_NO_TIME is specified then the ZIP archive functions will not be able to get the current time, or
 // get/set file times, and the C run-time funcs that get/set times won't be called.
 // The current downside is the times written to your archives will be from 1979.
-#ifdef ATFIELD_REPRODUCIBLE_ARCHIVES
+#ifdef ISLANDS_REPRODUCIBLE_ARCHIVES
 #define MINIZ_NO_TIME
 #endif
 
