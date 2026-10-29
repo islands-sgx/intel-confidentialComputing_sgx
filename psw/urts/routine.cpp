@@ -94,22 +94,6 @@ sgx_status_t SGXAPI sgx_set_ecall_page_readiness_table(
 }
 
 extern "C"
-sgx_status_t SGXAPI islands_sgx_set_ecall_page_readiness_backend(
-    const sgx_enclave_id_t enclave_id,
-    const uint32_t backend)
-{
-    if (readiness_txn_on_current_thread(enclave_id))
-        return SGX_ERROR_INVALID_STATE;
-    CEnclave *enclave = CEnclavePool::instance()->ref_enclave(enclave_id);
-    if (enclave == NULL)
-        return SGX_ERROR_INVALID_ENCLAVE_ID;
-
-    sgx_status_t result = enclave->set_ecall_page_readiness_backend(backend);
-    CEnclavePool::instance()->unref_enclave(enclave);
-    return result;
-}
-
-extern "C"
 int sgx_ocall(const unsigned int proc, const sgx_ocall_table_t *ocall_table, void *ms, CTrustThread *trust_thread)
 {
     assert(trust_thread != NULL);

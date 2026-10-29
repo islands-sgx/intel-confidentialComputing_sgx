@@ -47,12 +47,6 @@
 #include <mutex>
 #include <vector>
 
-enum page_readiness_backend_t
-{
-    PAGE_READINESS_BACKEND_KERNEL = 0,
-    PAGE_READINESS_BACKEND_USERSPACE = 1
-};
-
 struct ecall_page_readiness_entry_t
 {
     uint64_t selector;
@@ -88,7 +82,6 @@ public:
     bool is_zombie() { return m_zombie; }
     sgx_status_t initialize(const se_file_t& file, CLoader &ldr, const uint64_t enclave_size, const uint32_t tcs_policy, const uint32_t enclave_version, const uint32_t tcs_min_pool);
     sgx_status_t set_ecall_page_readiness_table(const sgx_page_readiness_table_t *table);
-    sgx_status_t set_ecall_page_readiness_backend(uint32_t backend);
     bool is_readiness_txn_on_current_thread() const;
     void add_thread(tcs_t * const tcs, bool is_unallocated);
     void add_thread(CTrustThread * const trust_thread);
@@ -150,8 +143,6 @@ private:
     size_t                  m_dynamic_tcs_list_size;
     std::atomic<bool>       m_page_readiness_started;
     bool                    m_page_readiness_table_set;
-    bool                    m_page_readiness_backend_set;
-    uint32_t                m_page_readiness_backend;
     bool                    m_page_readiness_table_installed;
     bool                    m_page_readiness_broken;
     std::atomic<bool>       m_destroying;
@@ -159,7 +150,6 @@ private:
     std::vector<uint8_t>    m_page_readiness_bytes;
     std::vector<ecall_page_readiness_entry_t> m_page_readiness_entries;
     std::vector<uint64_t>   m_page_readiness_rvas;
-    std::vector<uint64_t>   m_readable_reg_rvas;
     std::vector<uint64_t>   m_business_reg_rvas;
 #ifdef SE_SIM    
     void                    *m_global_data_sim_ptr;

@@ -126,8 +126,6 @@ CEnclave::CEnclave()
     , m_dynamic_tcs_list_size(0)
     , m_page_readiness_started(false)
     , m_page_readiness_table_set(false)
-    , m_page_readiness_backend_set(false)
-    , m_page_readiness_backend(PAGE_READINESS_BACKEND_KERNEL)
     , m_page_readiness_table_installed(false)
     , m_page_readiness_broken(false)
     , m_destroying(false)
@@ -194,12 +192,7 @@ sgx_status_t CEnclave::initialize(const se_file_t& file,  CLoader &ldr, const ui
 
     try
     {
-        m_readable_reg_rvas = ldr.get_readable_reg_pages();
         m_business_reg_rvas = ldr.get_business_reg_pages();
-        std::sort(m_readable_reg_rvas.begin(), m_readable_reg_rvas.end());
-        m_readable_reg_rvas.erase(
-            std::unique(m_readable_reg_rvas.begin(), m_readable_reg_rvas.end()),
-            m_readable_reg_rvas.end());
         std::sort(m_business_reg_rvas.begin(), m_business_reg_rvas.end());
         m_business_reg_rvas.erase(
             std::unique(m_business_reg_rvas.begin(), m_business_reg_rvas.end()),
@@ -489,74 +482,6 @@ sgx_status_t CEnclave::set_ecall_page_readiness_table(const sgx_page_readiness_t
     return SGX_SUCCESS;
 }
 
-sgx_status_t CEnclave::set_ecall_page_readiness_backend(uint32_t backend)
-{
-    if (backend != PAGE_READINESS_BACKEND_KERNEL &&
-        backend != PAGE_READINESS_BACKEND_USERSPACE)
-        return SGX_ERROR_INVALID_PARAMETER;
-    if (m_page_readiness_started.load(std::memory_order_acquire) ||
-        is_readiness_txn_on_current_thread())
-        return SGX_ERROR_INVALID_STATE;
-
-    se_wtlock(&m_rwlock);
-    if (m_destroyed || m_destroying.load(std::memory_order_acquire) ||
-        !m_page_readiness_table_set || m_page_readiness_backend_set ||
-        m_page_readiness_started.load(std::memory_order_acquire))
-    {
-        se_wtunlock(&m_rwlock);
-        return SGX_ERROR_INVALID_STATE;
-    }
-
-    if (backend == PAGE_READINESS_BACKEND_USERSPACE && !m_page_readiness_rvas.empty())
-    {
-        if (!m_dbg_flag)
-        {
-            SE_TRACE(SE_TRACE_WARNING,
-                     "Islands userspace readiness requires a debug enclave\n");
-            se_wtunlock(&m_rwlock);
-            return SGX_ERROR_FEATURE_NOT_SUPPORTED;
-        }
-        for (size_t i = 0; i < m_page_readiness_rvas.size(); ++i)
-        {
-            if (!std::binary_search(m_readable_reg_rvas.begin(), m_readable_reg_rvas.end(),
-                                    m_page_readiness_rvas[i]))
-            {
-                SE_TRACE(SE_TRACE_WARNING,
-                         "Islands userspace readiness target is not signed readable REG RVA=0x%llx\n",
-                         (unsigned long long)m_page_readiness_rvas[i]);
-                se_wtunlock(&m_rwlock);
-                return SGX_ERROR_INVALID_PARAMETER;
-            }
-        }
-    }
-
-    m_page_readiness_backend = backend;
-    m_page_readiness_backend_set = true;
-
-    static const char hex[] = "0123456789abcdef";
-    char enclave_hash[sizeof(m_target_info.mr_enclave) * 2 + 1];
-    for (size_t i = 0; i < sizeof(m_target_info.mr_enclave.m); ++i)
-    {
-        enclave_hash[i * 2] = hex[m_target_info.mr_enclave.m[i] >> 4];
-        enclave_hash[i * 2 + 1] = hex[m_target_info.mr_enclave.m[i] & 0x0f];
-    }
-    enclave_hash[sizeof(enclave_hash) - 1] = '\0';
-    SE_TRACE(SE_TRACE_NOTICE,
-             "Islands readiness backend=%s MR_ENCLAVE=%s selectors=%llu target_pages=%llu\n",
-             backend == PAGE_READINESS_BACKEND_KERNEL ? "kernel" : "userspace",
-             enclave_hash,
-             (unsigned long long)m_page_readiness_entries.size(),
-             (unsigned long long)m_page_readiness_rvas.size());
-    for (size_t i = 0; i < m_page_readiness_rvas.size(); ++i)
-    {
-        SE_TRACE(SE_TRACE_DEBUG, "Islands readiness target RVA=0x%llx\n",
-                 (unsigned long long)m_page_readiness_rvas[i]);
-    }
-
-    se_wtunlock(&m_rwlock);
-    return SGX_SUCCESS;
-}
-
 CEnclave::~CEnclave()
 {
     if (m_thread_pool)
@@ -715,39 +640,6 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
             readiness_entry = &(*entry);
             readiness_call = true;
             readiness_nonempty = readiness_entry->page_count != 0;
-
-            if (readiness_nonempty &&
-                m_page_readiness_backend == PAGE_READINESS_BACKEND_USERSPACE)
-            {
-                if (!m_dbg_flag)
-                {
-                    se_rdunlock(&m_rwlock);
-                    return SGX_ERROR_FEATURE_NOT_SUPPORTED;
-                }
-
-                const size_t first = (size_t)readiness_entry->first_page;
-                const size_t count = (size_t)readiness_entry->page_count;
-                for (size_t i = 0; i < count; ++i)
-                {
-                    const uint64_t rva = m_page_readiness_rvas[first + i];
-                    if (!std::binary_search(m_readable_reg_rvas.begin(),
-                                            m_readable_reg_rvas.end(), rva))
-                    {
-                        SE_TRACE(SE_TRACE_WARNING,
-                                 "Islands userspace readiness rejected MR page RVA=0x%llx selector=%d\n",
-                                 (unsigned long long)rva, proc);
-                        se_rdunlock(&m_rwlock);
-                        return SGX_ERROR_INVALID_PARAMETER;
-                    }
-
-                    SE_TRACE(SE_TRACE_DEBUG,
-                             "Islands userspace readiness touching MR_ENCLAVE page RVA=0x%llx selector=%d\n",
-                             (unsigned long long)rva, proc);
-                    const uintptr_t address = (uintptr_t)m_start_addr + (uintptr_t)rva;
-                    const volatile uint8_t touched = *(const volatile uint8_t *)address;
-                    (void)touched;
-                }
-            }
         }
     }
 
@@ -829,8 +721,7 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
         if (readiness_call)
         {
             ReadinessTxnFrame frame(m_enclave_id);
-            if (readiness_nonempty &&
-                m_page_readiness_backend == PAGE_READINESS_BACKEND_KERNEL)
+            if (readiness_nonempty)
             {
                 const uint64_t table_ptr = m_page_readiness_table_installed ? 0 :
                     (uint64_t)(uintptr_t)m_page_readiness_bytes.data();
@@ -853,8 +744,7 @@ sgx_status_t CEnclave::ecall(const int proc, const void *ocall_table, void *ms, 
             ret = do_ecall(proc, m_ocall_table, ms, trust_thread);
 
             int release_error = 0;
-            if (readiness_nonempty &&
-                m_page_readiness_backend == PAGE_READINESS_BACKEND_KERNEL)
+            if (readiness_nonempty)
             {
                 release_error = enclave_pages_release(m_start_addr);
                 if (release_error != 0)

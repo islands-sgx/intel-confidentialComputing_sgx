@@ -4,7 +4,6 @@
         sgx_create_enclave_ex;
         sgx_destroy_enclave;
         sgx_set_ecall_page_readiness_table;
-        islands_sgx_set_ecall_page_readiness_backend;
         sgx_ecall;
         sgx_ecall_switchless;
         sgx_thread_wait_untrusted_event_ocall;
